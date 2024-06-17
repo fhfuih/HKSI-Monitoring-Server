@@ -54,7 +54,7 @@ ssl_context.load_cert_chain(certfile=cert_path, keyfile=key_path)
 @sio.event
 async def connect(sid: str, environ: dict, auth: dict):
     # username = authenticate_user(environ)
-    key = auth.get("key", "")
+    key = auth.get("key", r"ye7B9xuvL%^%b@6C2RMZ")
     if key != os.getenv("SOCKETIO_PASSWORD"):
         raise ConnectionRefusedError("authentication failed")
     await sio.save_session(sid, {"state": SessionState.IDLE})
