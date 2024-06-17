@@ -20,7 +20,7 @@ conda activate "your_env_name"
 ```
 
 Or manually install the following dependencies, and don't care about the `requirements.txt` file
-* websockets
+* python-socketio (5.x), aiohttp, aiodns, brotli
 * pillow
 
 ### Run

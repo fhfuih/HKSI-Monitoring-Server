@@ -3,10 +3,38 @@
 from io import BytesIO
 from datetime import datetime
 import asyncio
-import websockets
+import json
+from typing import Any
+
+import socketio
 from PIL import Image, ImageDraw
 
-ws = None
+sio = socketio.AsyncClient()
+
+
+@sio.event
+async def connect():
+    print("connection established")
+
+
+@sio.event
+async def prediction(data):
+    print("message received with ", data)
+    await sio.emit("my response", {"response": "my response"})
+
+
+@sio.event
+async def disconnect():
+    print("disconnected from server")
+
+
+@sio.on("*")
+async def any_event(event: str, sid: str, data: Any):
+    print(f"Event {event} received with data {data} from {sid}")
+
+
+def on_prediction(response):
+    print("message received with", json.loads(response) if response else "empty")
 
 
 def makeData():
@@ -26,36 +54,22 @@ def makeData():
 
 
 async def send():
-    assert ws is not None
     print("Sending data")
     for i in range(5):
         print(f"Making data #{i}")
         data, t = makeData()
         print(f"Sending at {t} with data length {len(data)} bytes")
-        await ws.send(data)
+        await sio.emit("frame", data, callback=on_prediction)
         await asyncio.sleep(0.4)
 
 
-async def handle_response():
-    assert ws is not None
-    print("Listening for responses")
-    i = 0
-    async for message in ws:
-        print(f"Received: {message}")
-        i += 1
-        if i == 5:
-            break
-
-
 async def main():
-    global ws
-    ws = await websockets.connect("ws://localhost:8765")
-    print("ws initialized")
+    await sio.connect("http://localhost:8765")
     await asyncio.gather(
-        handle_response(),
+        sio.wait(),
         send(),
     )
-    await ws.close()
 
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
