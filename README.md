@@ -20,11 +20,16 @@ conda activate "your_env_name"
 ```
 
 Or manually install the following dependencies, and don't care about the `requirements.txt` file
-* python-socketio (5.x), aiohttp, aiodns, brotli
+* python-socketio (5.x, which is latest), aiohttp, aiodns, brotli
 * pillow
+* python-dotenv
 
 ### Run
 
+* Ask for the OneDrive share folder link with your collaborator. There, go to `Code/Server/` and copy everything there to the root folder of this code repository. For example, there are (including but not limited to)
+    * `.env`
+    * `ssl/cert.pem`
+    * `ssl/key.pem`
 * The main file is `main.py`. Run it to start a WebSocket server that listens to frontend messages and passes them to ML models.
 * `mock_model.py` is a mock of ML models, which can be time consuming.
 * `test.py` is a mock client (frontend). After the server is running, run this file in parallel to send five images consecutively with random interval.
@@ -44,6 +49,6 @@ Or manually install the following dependencies, and don't care about the `requir
 
 * Frontend -> server: raw byte array with the following components:
     * timestamp in milliseconds: 64 bits (8B), unsigned int, little endian
-    * image in PNG format: arbitrary length, PNG file, ??? endian
+    * image in PNG format: arbitrary length, PNG file, default to big endian (PNG standard requires big endian)
 * Server -> frontend: string with the following components:
-    * prediction results: arbitrary length, JSON
+    * prediction results: arbitrary length, JSON object, `{"some key in string": some value in arbitrary data type}`

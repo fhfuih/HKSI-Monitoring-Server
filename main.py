@@ -29,7 +29,7 @@ MODELS: List[BaseModel] = [
 
 # Logger setup. If file logger is needed, add a handler here.
 logger = logging.getLogger("socketIO")
-logger.setLevel(logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 # SSL keys for HTTPS
 cert_path = os.path.join(os.path.dirname(__file__), "ssl", "cert.pem")
@@ -40,10 +40,16 @@ key_path = os.path.join(os.path.dirname(__file__), "ssl", "key.pem")
 # ==========
 
 load_dotenv()
+is_dev = os.getenv("DEPLOYMENT_ENV", "").lower().startswith("dev")
 
 SessionState = Enum("SessionState", ["IDLE", "RUNNING"])
 
-sio = socketio.AsyncServer(logger=logger, cors_allowed_origins="*")
+sio = socketio.AsyncServer(
+    logger=logger,
+    cors_allowed_origins=(
+        "*" if is_dev else os.getenv("CORS_ALLOWED_ORIGINS").split(",")
+    ),
+)
 app = web.Application()
 sio.attach(app)
 
@@ -58,7 +64,7 @@ async def connect(sid: str, environ: dict, auth: dict):
     if key != os.getenv("SOCKETIO_PASSWORD"):
         raise ConnectionRefusedError("authentication failed")
     await sio.save_session(sid, {"state": SessionState.IDLE})
-    print("connect", sid, auth, auth.__class__)
+    logger.info("connect %s", sid)
 
 
 @sio.event
@@ -67,9 +73,9 @@ async def disconnect(sid: str):
     if state != SessionState.IDLE:
         timestamp = int(datetime.now().timestamp() * 1000)
         await end_all_models(sid, timestamp)
-        print("disconnect", sid, "and auto-end all running models for this session")
+        logger.info("disconnect %s & end all running models for this session", sid)
     else:
-        print("disconnect", sid)
+        logger.info("disconnect %s", sid)
 
 
 @sio.event
@@ -80,13 +86,15 @@ async def frame_start(sid: str, data: bytes = bytes()):
     session_data = await sio.get_session(sid)
     state = session_data["state"]
     if state != SessionState.IDLE:
-        print(f"Session is already running: state {state} != {SessionState.IDLE}")
+        logger.debug(
+            f"Session is already running: state {state} != {SessionState.IDLE}"
+        )
         return error_ack(f"Session is already running: {state}")
     await sio.save_session(sid, {"state": SessionState.RUNNING})
 
     timestamp = get_timestamp(data)
-    print(
-        f"Received {__name__} at {datetime.fromtimestamp(timestamp / 1000)} with data length {len(data)} bytes & sid {sid}"
+    logger.debug(
+        f"frame_start at {datetime.fromtimestamp(timestamp / 1000)}, sid {sid}"
     )
 
     await start_all_models(sid, timestamp)
@@ -105,9 +113,7 @@ async def frame_end(sid: str, data: bytes = bytes()):
     await sio.save_session(sid, {"state": SessionState.IDLE})
 
     timestamp = get_timestamp(data)
-    print(
-        f"Received {__name__} at {datetime.fromtimestamp(timestamp / 1000)} with data length {len(data)} bytes & sid {sid}"
-    )
+    logger.debug(f"frame_end at {datetime.fromtimestamp(timestamp / 1000)}, sid {sid}")
 
     await end_all_models(sid, timestamp)
     return '{"success": true}'
@@ -124,8 +130,7 @@ async def frame(sid: str, data: bytes = bytes()) -> str:
         return error_ack(f"Session is not running: {state}")
 
     timestamp = get_timestamp(data)
-    t = datetime.fromtimestamp(timestamp / 1000)
-    print(f"Received data with length {len(data)} bytes")
+    logger.debug(f"Received frame with length {len(data)} bytes")
 
     try:
         frame = get_image(data)
@@ -141,13 +146,15 @@ async def frame(sid: str, data: bytes = bytes()) -> str:
         if r is not None:
             result.update(r)
 
-    print(f"Responding data at {t} with {result}")
+    logger.debug(
+        f"Responding data at {datetime.fromtimestamp(timestamp / 1000)} with {result}"
+    )
     return success_ack(result)
 
 
 @sio.on("*")
 async def any_event(event: str, sid: str, data: Any):
-    print(f"Unregistered event {event} received with data {data} from {sid}")
+    logger.debug(f"Unregistered event {event} received with data {data} from {sid}")
     return error_ack("Unregistered event")
 
 
@@ -226,4 +233,11 @@ def error_ack(msg: str) -> str:
 
 
 if __name__ == "__main__":
+    if is_dev:
+        logger.setLevel(logging.DEBUG)
+
+    print(
+        f"Starting with logger level {logging.getLevelName(logger.getEffectiveLevel())}"
+    )
+
     web.run_app(app, host=HOST, port=PORT, ssl_context=ssl_context)
