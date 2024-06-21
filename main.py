@@ -43,7 +43,7 @@ load_dotenv()
 
 SessionState = Enum("SessionState", ["IDLE", "RUNNING"])
 
-sio = socketio.AsyncServer(logger=logger, cors_allowed_origins=["192.168.1.100:8765"])
+sio = socketio.AsyncServer(logger=logger, cors_allowed_origins="*")
 app = web.Application()
 sio.attach(app)
 
@@ -73,7 +73,7 @@ async def disconnect(sid: str):
 
 
 @sio.event
-async def frame_start(sid: str, data: bytes):
+async def frame_start(sid: str, data: bytes = bytes()):
     if len(data) < 8:
         return error_ack("Data length is less than 8 bytes")
 
@@ -94,7 +94,7 @@ async def frame_start(sid: str, data: bytes):
 
 
 @sio.event
-async def frame_end(sid: str, data: bytes):
+async def frame_end(sid: str, data: bytes = bytes()):
     if len(data) < 8:
         return error_ack("Data length is less than 8 bytes")
 
@@ -114,7 +114,7 @@ async def frame_end(sid: str, data: bytes):
 
 
 @sio.event
-async def frame(sid: str, data: bytes) -> str:
+async def frame(sid: str, data: bytes = bytes()) -> str:
     if len(data) < 8:
         return error_ack("Data length is less than 8 bytes")
 

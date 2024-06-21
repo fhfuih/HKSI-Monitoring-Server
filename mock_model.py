@@ -1,4 +1,5 @@
 import time
+from datetime import datetime
 import random
 from typing import Optional, Hashable
 
@@ -11,10 +12,14 @@ class MockModel1(BaseModel):
     name = "Model1"
 
     def start(self, sid: Hashable, timestamp: int) -> None:
-        print(f"$$$ {self.name} started at {timestamp} with sid {sid}")
+        print(
+            f"$$$ {self.name} started at {datetime.fromtimestamp(timestamp/1000)} with sid {sid}"
+        )
 
     def end(self, sid: Hashable, timestamp: int) -> None:
-        print(f"$$$ {self.name} ended at {timestamp} with sid {sid}")
+        print(
+            f"$$$ {self.name} ended at {datetime.fromtimestamp(timestamp/1000)} with sid {sid}"
+        )
 
     def forward_single_frame(
         self, sid: Hashable, frame: Image.Image, timestamp: int
