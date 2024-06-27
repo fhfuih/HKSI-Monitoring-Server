@@ -45,10 +45,23 @@ Or manually install the following dependencies, and don't care about the `requir
 
 ## For Frontend Developers
 
-### WebSocket Message Protocol
+### SocketIO Message Protocol
 
-* Frontend -> server: raw byte array with the following components:
-    * timestamp in milliseconds: 64 bits (8B), unsigned int, little endian
-    * image in PNG format: arbitrary length, PNG file, default to big endian (PNG standard requires big endian)
-* Server -> frontend: string with the following components:
-    * prediction results: arbitrary length, JSON object, `{"some key in string": some value in arbitrary data type}`
+* Frontend -> server: event `session_start`
+    * Event argument: raw byte array of 64 bits (8B) with the following components:
+        * timestamp in milliseconds: 64 bits (8B), unsigned int, little endian
+    * With ack: JSON string `{"success": true}` or `{"success": false, "error": "..."}`
+* Frontend -> server: event `session_end`
+    * Event argument: raw byte array of 64 bits (8B) with the following components:
+        * timestamp in milliseconds: 64 bits (8B), unsigned int, little endian
+    * With ack: JSON string `{"success": true}` or `{"success": false, "error": "..."}`
+* Frontend -> server: event `frame`
+    * Event argument: raw byte array with the following components:
+        * timestamp in milliseconds: 64 bits (8B), unsigned int, little endian
+        * image in PNG format: arbitrary length, PNG file, default to big endian (PNG standard requires big endian)
+    * With ack: JSON string `{"success": true}` or `{"success": false, "error": "..."}`.
+    **The ack happends immediately when the current frame is scheduled. It is not guaranteed whether the current frame is processed.**
+* Server -> frontend: event `prediction`
+    * Event argument: JSON string in the following format:
+        * `{"some key in string": some value in arbitrary data type}`
+    * Without ack

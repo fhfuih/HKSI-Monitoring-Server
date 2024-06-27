@@ -29,7 +29,7 @@ class MockModel1(BaseModel):
         )
 
         # sleep a random time between 0.5 second and 2 second, don't use asyncio
-        sleep_time = random.uniform(0.5, 2)
+        sleep_time = 0.5  # random.uniform(0.5, 2)
         time.sleep(sleep_time)
         not_none = random.choice((None, True, True, True, True))
 
@@ -50,16 +50,20 @@ class MockModel2(BaseModel):
     name = "Model2"
 
     def start(self, sid: Hashable, timestamp: int) -> None:
-        print(f"@@@ {self.name} started at {timestamp} with sid {sid}")
+        print(
+            f"@@@ {self.name} started at {datetime.fromtimestamp(timestamp/1000)} with sid {sid}"
+        )
 
     def end(self, sid: Hashable, timestamp: int) -> None:
-        print(f"@@@ {self.name} ended at {timestamp} with sid {sid}")
+        print(
+            f"@@@ {self.name} ended at {datetime.fromtimestamp(timestamp/1000)} with sid {sid}"
+        )
 
     def forward_single_frame(
         self, sid: Hashable, frame: Image.Image, timestamp: int
     ) -> Optional[dict]:
         # sleep a random time between 0.5 second and 2 second, don't use asyncio
-        sleep_time = random.uniform(0.5, 2)
+        sleep_time = 0.5  # random.uniform(0.5, 2)
         time.sleep(sleep_time)
         not_none = True
         return not_none and {
