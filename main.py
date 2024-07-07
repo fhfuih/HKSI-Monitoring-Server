@@ -40,8 +40,8 @@ MODELS: list[BaseModel] = [
 ]
 
 # Logger setup. If file logger is needed, add a handler here.
-logger = logging.getLogger("HKSI")
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("HKSI")
 
 # SSL keys for HTTPS
 cert_path = os.path.join(os.path.dirname(__file__), "ssl", "cert.pem")
@@ -58,8 +58,11 @@ is_dev = os.getenv("DEPLOYMENT_ENV", "").lower().startswith("dev")
 # Server setup
 SessionState = Enum("SessionState", ["IDLE", "RUNNING"])
 
+sio_logger = logging.getLogger("HKSI Socket.IO")
+sio_logger.setLevel(logging.WARNING)
+
 sio = socketio.AsyncServer(
-    logger=logger,
+    logger=sio_logger,
     cors_allowed_origins=(
         "*" if is_dev else os.getenv("CORS_ALLOWED_ORIGINS").split(",")
     ),
@@ -151,8 +154,8 @@ async def disconnect(cid: str):
     connection_data = await sio.get_session(cid)
     sid = connection_data.get("sid")
     if sid is not None:
-        timestamp = int(datetime.now().timestamp() * 1000)
-        await end_all_models(sid, timestamp)
+        ts = int(datetime.now().timestamp() * 1000)
+        await session_end(cid, ts.to_bytes(8, byteorder="little", signed=False))
         # TODO: clear the queue
         logger.info("disconnect %s & end running session", cid)
     else:
@@ -272,9 +275,6 @@ async def frame(cid: str, data: bytes = bytes()) -> str:
     except asyncio.QueueFull:
         return error_ack("Queue is full")
 
-    logger.debug(
-        f"Accept data at {datetime.fromtimestamp(frame_data.timestamp / 1000)}"
-    )
     return success_ack()
 
 
@@ -323,5 +323,5 @@ if __name__ == "__main__":
         f"Starting with logger level {logging.getLevelName(logger.getEffectiveLevel())}"
     )
 
-    # web.run_app(app, host=HOST, port=PORT, ssl_context=ssl_context)
-    web.run_app(app, host=HOST, port=PORT)
+    web.run_app(app, host=HOST, port=PORT, ssl_context=ssl_context)
+    # web.run_app(app, host=HOST, port=PORT)
