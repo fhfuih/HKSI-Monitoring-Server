@@ -2,9 +2,9 @@
 # Edit at https://www.toptal.com/developers/gitignore?templates=python
 
 .DS_Store
-/ssl/*.crt
-/ssl/*.key
-/ssl/*.pem
+# /ssl/*.crt
+# /ssl/*.key
+# /ssl/*.pem
 
 ### Python ###
 # Byte-compiled / optimized / DLL files
@@ -129,7 +129,7 @@ celerybeat.pid
 *.sage.py
 
 # Environments
-.env
+# .env
 .venv
 env/
 venv/
