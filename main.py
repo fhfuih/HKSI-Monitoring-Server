@@ -323,5 +323,5 @@ if __name__ == "__main__":
         f"Starting with logger level {logging.getLevelName(logger.getEffectiveLevel())}"
     )
 
-    web.run_app(app, host=HOST, port=PORT, ssl_context=ssl_context)
-    # web.run_app(app, host=HOST, port=PORT)
+    # web.run_app(app, host=HOST, port=PORT, ssl_context=ssl_context)
+    web.run_app(app, host=HOST, port=PORT)

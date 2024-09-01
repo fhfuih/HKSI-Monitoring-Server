@@ -1,0 +1,16 @@
+[tool.poetry]
+package-mode = false
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.8, <3.12" # google-crc32c binary supports 3.7-3.11, av >= 3.8
+aiohttp = {extras = ["speedups"], version = "^3.10.5"}
+aiohttp-catcher = "^0.3.2"
+aiortc = "^1.9.0"
+opencv-python = "^4.10.0.84"
+av = "^12.3.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

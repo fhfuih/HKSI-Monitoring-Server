@@ -4,35 +4,29 @@ This is the simple backend server as a broker between the frontend (facial image
 
 ## Set up and Run
 
-I use python 3.12. Not sure about versions < 3.12.
+### Two versions
 
-### Dependencies
+There are two versions. `main.py` is an old version using websocket (the old "video tranmission protocol"). `webetc.py` is a new version using webrtc (the more efficient but complex video transmission protocol).
 
-Install dependencies and (preferrably) create a new virtual environment
+I use python 3.9. Not sure about other versions, but should work. Note that python 3.12 doesn't have certain optional WebRTC dependency (but any version between 3.8 and 3.11 has), so there will be a warning when running `webrtc.py`.
+For `main.py`, 3.12 should also work.
 
-> The following example uses `conda`.
-> If you use `venv` (for virtual environments) and `pip` (for dependency installation),
-> there are similar commands.
+**The `webrtc.py` version still requires some tuning. For ML developers, currently you can test using the `main.py` version.**
 
-```sh
-conda create -n "your_env_name" --file requirements.txt
-conda activate "your_env_name"
-```
+### Installing Dependencies
 
-Or manually install the following dependencies, and don't care about the `requirements.txt` file
+For `main.py`, install the following packages
 * python-socketio (5.x, which is latest), aiohttp, aiodns, brotli
 * pillow
 * python-dotenv
 
-### Run
+For `webrtc.py`, install the packages listed in `pyproject.toml`. If you use the Poetry software to manage Python environments, you can directly call `poetry install` to load the `pyproject.toml` file.
 
-* Ask for the OneDrive share folder link with your collaborator. There, go to `Code/Server/` and copy everything there to the root folder of this code repository. For example, there are (including but not limited to)
-    * `.env`
-    * `ssl/cert.pem`
-    * `ssl/key.pem`
-* The main file is `main.py`. Run it to start a WebSocket server that listens to frontend messages and passes them to ML models.
-* `mock_model.py` is a mock of ML models, which can be time consuming.
-* `test.py` is a mock client (frontend). After the server is running, run this file in parallel to send five images consecutively with random interval.
+### File structure
+
+* The main file is `main.py` (or `webrtc.py`, which is still not finished and not plugged into ML models). Run `main.py` to start a WebSocket server that listens to frontend messages and passes them to ML models.
+* `mock_model.py` is a mock of ML models, which is intended to be time consuming.
+* `test.py` is a mock client (frontend). After the server is running, run this file in parallel to send five frames consecutively with random interval. The frames are simply black text on a solid color square. **You can change this `test.py` to actually read a sample video's frames and send them.**
 
 ## For ML Developers
 
@@ -40,12 +34,14 @@ Or manually install the following dependencies, and don't care about the `requir
 * One can add concrete ML model implementations that resembles the mock ones
     * The function signature (parameters and return) should look like the mock ones. Docs are at `mock_model.py`
     * ML model function *do not* need to implement concurrency. They are handled in `main.py`.
-    * ML model function **do** need to implement any behaviors when receiving a new image frame. For example, do not return on the first few passes and meanwhile cache the images for those passes.
+    * ML model function **do** need to implement any behaviors when receiving a new image frame. For example, return nothing on the first few passes and meanwhile cache the images for those passes.
     * Add the functions to the `PREDICTIONS` variable in `main.py`. The order of this list matters in that: if two prediction functions contain a same key in the returning dict, the latter one will override the former one.
+    * **You may return something in `end` function (like a final average data of the current prediction session)**, even if the current type notation says it returns None. I will handle the changes if you do so.
+* When I finish `webrtc.py`, I will plug ML models into the new WebRTC version server, and there should be no changes for the actual ML implementations.
 
 ## For Frontend Developers
 
-### SocketIO Message Protocol
+### Websocket Message Protocol
 
 * Frontend -> server: event `session_start`
     * Event argument: raw byte array of 64 bits (8B) with the following components:

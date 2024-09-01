@@ -43,17 +43,20 @@ def makeTime():
     return ts.to_bytes(8, byteorder="little", signed=False)
 
 
-def makeData(i):
-    tsBytes = makeTime()
-
+def makeTestFrame(dummyText: str) -> bytes:
     imageBytesIO = BytesIO()
     image = Image.new("RGB", (244, 244), "#B99169")
     draw = ImageDraw.Draw(image)
-    draw.text((10, 10), str(i), fill="black")
+    draw.text((10, 10), dummyText, fill="black")
     image.save(imageBytesIO, format="PNG")
     imageBytes = imageBytesIO.getvalue()
     imageBytesIO.close()
+    return imageBytes
 
+
+def makeData(i):
+    tsBytes = makeTime()
+    imageBytes = makeTestFrame(str(i))
     data = tsBytes + imageBytes
     return data
 
