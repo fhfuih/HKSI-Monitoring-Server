@@ -3,13 +3,28 @@ package-mode = false
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = ">=3.8, <3.12" # google-crc32c binary supports 3.7-3.11, av >= 3.8
-aiohttp = {extras = ["speedups"], version = "^3.10.5"}
+# google-crc32c is an indirect dependency of aiortc (require >= 1.1)
+# Not all google-crc32c versions come with a production-level "binary"
+# version ^1.5 supports 3.7-3.11, version ^1.6 supports 3.9-3.12
+# av is also another indirect dependency. It supports Python >= 3.8.
+# Also, TF and PyTorch supports <= 3.11 to date, we require [3.8, 3.12)
+python = ">=3.8, <3.12"
+aiohttp = { extras = ["speedups"], version = "^3.10.5" }
 aiohttp-catcher = "^0.3.2"
 aiortc = "^1.9.0"
 opencv-python = "^4.10.0.84"
 av = "^12.3.0"
 
+[tool.ruff.lint]
+select = ["D", "I"]
+
+ignore = ["D100", "D101"]
+
+[tool.ruff.lint.per-file-ignores]
+"!models.py" = ["D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
 
 [build-system]
 requires = ["poetry-core"]

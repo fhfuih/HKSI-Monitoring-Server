@@ -1,112 +1,126 @@
-#!/usr/bin/env python
-
-from io import BytesIO
-from datetime import datetime
+import argparse
 import asyncio
-import os
-from typing import Any
+import logging
 
-from dotenv import load_dotenv
-import socketio
-from PIL import Image, ImageDraw
-
-sio = socketio.AsyncClient(ssl_verify=False)
-
-
-@sio.event
-async def connect():
-    print("connection established")
+import aiohttp
+from aiortc import (
+    RTCIceCandidate,
+    RTCPeerConnection,
+    RTCSessionDescription,
+    VideoStreamTrack,
+)
+from aiortc.contrib.media import MediaBlackhole, MediaPlayer, MediaRecorder
+from av.video.frame import VideoFrame
 
 
-@sio.event
-async def prediction(data):
-    print("prediction received with ", data)
+async def run(pc, player, recorder, role):
+    # a future that only resolves when the player is done
+    future = asyncio.get_running_loop().create_future()
 
+    def add_tracks():
+        if not player:
+            return
 
-@sio.event
-async def disconnect():
-    print("disconnected from server")
+        if player.audio:
+            pc.addTrack(player.audio)
+            print("Adding audio track")
 
+        if player.video:
+            track = player.video
 
-@sio.on("*")
-async def any_event(event: str, sid: str, data: Any):
-    print(f"Unregistered event {event} received with data {data} from {sid}")
+            @track.on("ended")
+            async def on_ended():
+                await pc.close()
+                future.set_result(None)
 
+            pc.addTrack(track)
+            print("Adding video track")
 
-def on_submit_frame(response):
-    print("submit frame response", response)
+    @pc.on("track")
+    def on_track(track):
+        print("Receiving %s" % track.kind)
+        recorder.addTrack(track)
 
+    @pc.on("connectionstatechange")
+    async def on_connectionstatechange():
+        print("Connection state is %s", pc.connectionState)
+        if pc.connectionState == "failed":
+            await pc.close()
+            future.set_result(None)
 
-def makeTime():
-    t = datetime.now()
-    ts = int(t.timestamp() * 1000)
-    return ts.to_bytes(8, byteorder="little", signed=False)
+    if role == "offer":
+        # send offer
+        add_tracks()
+        await pc.setLocalDescription(await pc.createOffer())
+        offer_sdp = pc.localDescription.sdp
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                "http://localhost:8080/offer", json={"sdp": offer_sdp, "type": "offer"}
+            ) as response:
+                if response.status != 200:
+                    print("Failed to send offer")
+                    return
+                params = await response.json()
+                obj = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
 
+    # consume signaling
+    if isinstance(obj, RTCSessionDescription):
+        await pc.setRemoteDescription(obj)
+        await recorder.start()
+    elif isinstance(obj, RTCIceCandidate):  # type: ignore
+        await pc.addIceCandidate(obj)
+    else:
+        print("Unknown message", repr(obj))  # type: ignore
 
-def makeTestFrame(dummyText: str) -> bytes:
-    imageBytesIO = BytesIO()
-    image = Image.new("RGB", (244, 244), "#B99169")
-    draw = ImageDraw.Draw(image)
-    draw.text((10, 10), dummyText, fill="black")
-    image.save(imageBytesIO, format="PNG")
-    imageBytes = imageBytesIO.getvalue()
-    imageBytesIO.close()
-    return imageBytes
-
-
-def makeData(i):
-    tsBytes = makeTime()
-    imageBytes = makeTestFrame(str(i))
-    data = tsBytes + imageBytes
-    return data
-
-
-async def send():
-    print("Submit a frame before session_start")
-    loop = asyncio.get_event_loop()
-    future = loop.create_future()
-    await sio.emit("frame", makeData(1), callback=lambda *args: future.set_result(args))
     await future
-    print("Frame response is", future.result())
-
-    print("Send session_start")
-    future = loop.create_future()
-    await sio.emit(
-        "session_start", makeTime(), callback=lambda *args: future.set_result(args)
-    )
-    await future
-    print("session_start response is", future.result())
-
-    print("Submit frames")
-    await sio.emit("frame", makeData(1), callback=on_submit_frame)
-    await asyncio.sleep(0.3)
-    await sio.emit("frame", makeData(2), callback=on_submit_frame)
-    await asyncio.sleep(0.3)
-    await sio.emit("frame", makeData(3), callback=on_submit_frame)
-    await asyncio.sleep(0.3)
-    #
-    await asyncio.sleep(0.3)
-
-    print("Sending session_end")
-    await sio.emit(
-        "session_end",
-        makeTime(),
-        callback=lambda x: print("session_end response is", x),
-    )
-
-
-async def main():
-    await sio.connect(
-        "ws://127.0.0.1:8765",
-        auth={"key": os.getenv("SOCKETIO_PASSWORD", "")},
-        transports=["websocket"],
-    )
-    await asyncio.gather(
-        sio.wait(),
-        send(),
-    )
 
 
 if __name__ == "__main__":
-    load_dotenv()
-    asyncio.run(main())
+    parser = argparse.ArgumentParser(description="Video stream from the command line")
+    parser.add_argument("--role", choices=["offer", "answer"], default="offer")
+    parser.add_argument(
+        "--play-from",
+        default="sample-video.mp4",
+        help="Read the media from a file and sent it.",
+    )
+    parser.add_argument(
+        "--record-to", default=None, help="Write received media to a file."
+    )
+    parser.add_argument("--verbose", "-v", action="count")
+    args = parser.parse_args()
+
+    if args.verbose:
+        logging.basicConfig(level=logging.DEBUG)
+
+    # create peer connection
+    pc = RTCPeerConnection()
+
+    # create media source
+    if args.play_from:
+        player = MediaPlayer(args.play_from)
+    else:
+        player = None
+
+    # create media sink
+    if args.record_to:
+        recorder = MediaRecorder(args.record_to)
+    else:
+        recorder = MediaBlackhole()
+
+    # run event loop
+    loop = asyncio.get_event_loop()
+    try:
+        loop.run_until_complete(
+            run(
+                pc=pc,
+                player=player,
+                recorder=recorder,
+                role=args.role,
+            )
+        )
+    except KeyboardInterrupt:
+        pass
+    finally:
+        # cleanup
+        loop.run_until_complete(recorder.stop())
+        loop.run_until_complete(pc.close())

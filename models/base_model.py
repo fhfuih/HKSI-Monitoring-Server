@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Hashable, Optional
-from PIL import Image
+import numpy as np
 
 
 class BaseModel(ABC):
@@ -8,7 +8,7 @@ class BaseModel(ABC):
 
     @abstractmethod
     def start(self, sid: Hashable, timestamp: int, *args, **kwargs) -> None:
-        """Start a prediciton session (i.e., a new video stream)
+        """Start a prediciton session (i.e., a new video stream).
 
         Parameters
         ----------
@@ -21,22 +21,29 @@ class BaseModel(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def end(self, sid: Hashable, timestamp: int, *args, **kwargs) -> None:
-        """End a prediction session (i.e., a video stream)
+    def end(self, sid: Hashable, timestamp: Optional[int], *args, **kwargs) -> dict:
+        """End a prediction session (i.e., a video stream).
 
         Parameters
         ----------
         sid : Hashable
             An identifier for the prediction session.
-        timestamp : int
+        timestamp : Optional[int]
             The timestamp **in milliseconds** when the model is ended.
             This is NOT the same as Python's default timestamp behavior (which is in seconds).
+            NOTE: This parameter is optional. A model may not know the end time.
+
+        Returns
+        -------
+        dict
+            The overall prediction result of the session.
+            For example, the averaged value over the 30 seconds.
         """
         raise NotImplementedError
 
     @abstractmethod
-    def forward_single_frame(
-        self, sid: Hashable, frame: Image.Image, timestamp: int, *args, **kwargs
+    def frame(
+        self, sid: Hashable, frame: np.ndarray, timestamp: int, *args, **kwargs
     ) -> Optional[dict]:
         """Mock the model's forward pass.
 
@@ -44,7 +51,7 @@ class BaseModel(ABC):
         ----------
         sid : Hashable
             An identifier for the prediction session.
-        frame : Image.Image
+        frame : np.ndarray
             The image frame to process.
         timestamp : int
             The timestamp **in milliseconds** when the frame was received.

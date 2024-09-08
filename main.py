@@ -1,327 +1,237 @@
-"""
-SocketIO server implementation for prediction models on the cloud.
-
-Note: According to the official document,
-SocketIO event handlers' first argument is called `sid` which stands for "session id",
-and the "session" refers to the connection between the client and the server.
-However, in this program, we call it `cid` which stands for "connection id".
-We reuse the term "session" to represent the start and end of a prediction session ---
-a consecutive series of frames of the same user that are processed by the models.
-The variable `sid` is also used when the latter meaning is intended.
-"""
-
-from datetime import datetime
+import argparse
 import asyncio
 import json
-from typing import Any
-from enum import Enum
 import logging
-import os.path
-import ssl
 import os
+import ssl
+import uuid
+from typing import Awaitable, cast
 
-from dotenv import load_dotenv
+import av
+import numpy as np
 from aiohttp import web
-import socketio
-from PIL import UnidentifiedImageError
-
-from data_structure import FrameData, get_timestamp
-from models import BaseModel
-import mock_model
-
-# WebSocket server address
-HOST = "0.0.0.0"
-PORT = 8765
-
-# list of prediction functions to run (e.g., HR is 1, Fatigue is 2)
-MODELS: list[BaseModel] = [
-    mock_model.MockModel1(),
-    mock_model.MockModel2(),
-]
-
-# Logger setup. If file logger is needed, add a handler here.
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("HKSI")
-
-# SSL keys for HTTPS
-cert_path = os.path.join(os.path.dirname(__file__), "ssl", "cert.pem")
-key_path = os.path.join(os.path.dirname(__file__), "ssl", "key.pem")
-
-# ==========
-# Server implemention starts here
-# ==========
-
-# Load environment variables
-load_dotenv()
-is_dev = os.getenv("DEPLOYMENT_ENV", "").lower().startswith("dev")
-
-# Server setup
-SessionState = Enum("SessionState", ["IDLE", "RUNNING"])
-
-sio_logger = logging.getLogger("HKSI Socket.IO")
-sio_logger.setLevel(logging.WARNING)
-
-sio = socketio.AsyncServer(
-    logger=sio_logger,
-    cors_allowed_origins=(
-        "*" if is_dev else os.getenv("CORS_ALLOWED_ORIGINS").split(",")
-    ),
+from aiohttp_catcher import Catcher
+from aiohttp_catcher.canned import AIOHTTP_SCENARIOS
+from aiortc import (
+    RTCPeerConnection,
+    RTCSessionDescription,
+    VideoStreamTrack,
 )
-app = web.Application()
-sio.attach(app)
+from aiortc.contrib.media import (
+    MediaBlackhole,
+    MediaRecorder,
+    MediaStreamTrack,
+)
+from aiortc.rtcrtpreceiver import RemoteStreamTrack
+from av import logging as av_logging
+from av.video.frame import VideoFrame
 
-ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-ssl_context.load_cert_chain(certfile=cert_path, keyfile=key_path)
+from broker import Broker
+from models.mock_model_1 import MockModel1
+from models.mock_model_2 import MockModel2
+
+ROOT = os.path.dirname(__file__)
+MODELS = [MockModel1, MockModel2]
+
+# Logs
+logger = logging.getLogger("HKSI WebRTC")
+logger.setLevel(logging.DEBUG)
+
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+logger.addHandler(console_handler)
+
+file_handler = logging.FileHandler("webrtc.log")
+file_handler.setLevel(logging.WARNING)
+logger.addHandler(file_handler)
+
+pcs = set()  # keep track of peer connections for cleanup
+
+broker = Broker(MODELS)
 
 
-# asyncio producer-consumer pattern
-# queue_by_cid: Annotated[
-#     dict[str, asyncio.Queue[FrameData]],
-#     """
-# A dictionary that maps connection id to a queue of FrameData objects.
-# For a connection, the queue is *NOT* created at connection.
-# Rather, it is created at the session_start event (i.e., when a *session* starts).
-# Since all sessions via this connection share the same connection id,
-# when latter sessions start, they can check if previous sessions' data is cleared.
-# """,
-# ] = {}
-
-
-async def consume_frame(queue: asyncio.Queue[FrameData]):
+class VideoTransformTrack(VideoStreamTrack):
     """
-    This is the worker task that consumes the frame data from the queue.
-    It should be cancelled somewhere at session_end event.
-    In case the server disconnects while streaming frames (i.e., session_end is not emitted),
-    it aborts, reads no more items in the queue, and the reference to the queue is released.
+    A video stream track that transforms frames from an another track.
     """
-    while True:
-        frame_data = await queue.get()
 
-        # Check if connection is still there
-        # try:
-        #     await sio.get_session(frame_data.cid)
-        # except KeyError:
-        #     logger.warning(
-        #         "Connection %s lost while consuming its frames. Abort consumption.",
-        #         frame_data.cid,
-        #     )
-        #     queue.task_done()
-        #     return
+    kind = "video"
 
-        result_list = await process_frame_all_models(
-            frame_data.sid, frame_data.timestamp, frame_data.frame
-        )
-        result = {
-            "frame": {"size": frame_data.frame.size, "mode": frame_data.frame.mode},
-            "recv_ts": frame_data.timestamp,
-        }
-        for r in result_list:
-            if r is not None:
-                result.update(r)
+    def __init__(self, track: MediaStreamTrack, sid: str, reset_timestamp=False):
+        super().__init__()
+        self.track = track
+        self.sid = sid
+        self.reset_timestamp = reset_timestamp
 
-        await sio.emit("prediction", success_ack(result), to=frame_data.cid)
-        queue.task_done()
-        del frame_data
+    async def recv(self):
+        # The track is an aiortc.rtcrtpreceiver.RemoteStreamTrack, and the frame is av.video.frame.VideoFrame
+        frame = cast(VideoFrame, await self.track.recv())
 
+        # logger.debug(f"{type(frame)} {frame.format.name}, {frame.width}x{frame.height}")
 
-@sio.event
-async def connect(cid: str, environ: dict, auth: dict):
-    key = auth.get("key")
-    if key != os.getenv("SOCKETIO_PASSWORD"):
-        logger.warning("Authentication failed for %s. Auth payload is %s", cid, auth)
-        raise ConnectionRefusedError("authentication failed")
+        # This attempts to fix messed up frame order and speed
+        if self.reset_timestamp:
+            pts, time_base = await self.next_timestamp()
+            frame.pts = pts
+            frame.time_base = time_base
 
-    # if cid in queue_by_cid:
-    #     logger.warning("Connection data already exists for %s. Removing them.", cid)
-    #     del queue_by_cid[cid]
-    # queue_by_cid[cid] = asyncio.Queue()
+        # Feed the frame to ML models
+        data = frame.to_ndarray(format="rgb24")
+        timestamp = round(frame.time * 1000)  # frame.time is in seconds
+        broker.frame(self.sid, data, timestamp)
 
-    connection_data = await sio.get_session(cid)
-    if connection_data.get("sid") is not None:
-        logger.warning("Connection data already exists for %s. Removing them.", cid)
-    await sio.save_session(cid, {"sid": None, "queue": None, "consumer_task": None})
-
-    logger.info("connect %s", cid)
+        return frame  # frame.reformat(format="rgb24") # is reformat needed? The returned frame is to be saved to a file
 
 
-@sio.event
-async def disconnect(cid: str):
-    # if cid not in queue_by_cid:
-    #     logger.warning("Connection data not found for %s. Skip deletion.", cid)
-    # else:
-    #     del queue_by_cid[cid]
-
-    connection_data = await sio.get_session(cid)
-    sid = connection_data.get("sid")
-    if sid is not None:
-        ts = int(datetime.now().timestamp() * 1000)
-        await session_end(cid, ts.to_bytes(8, byteorder="little", signed=False))
-        # TODO: clear the queue
-        logger.info("disconnect %s & end running session", cid)
-    else:
-        logger.info("disconnect %s", cid)
-
-
-@sio.event
-async def session_start(cid: str, data: bytes = bytes()):
-    """
-    Start a new session for the connection.
-    A new session is started when a new user comes to use this service;
-    therefore, the previous user has left.
-    Thus, we can safely remove any incomplete tasks in the previous session.
-    """
-    if len(data) < 8:
-        return error_ack("Data length is less than 8 bytes")
-
-    # check if session_start is already called
-    connection_data = await sio.get_session(cid)
-    sid = connection_data.get("sid")
-    if sid is not None:
-        logger.debug(f"Session is already running: sid {sid}")
-        return error_ack(f"Session is already running: starting at {sid[-14:]}")
-
-    # get timestamp from the data
-    timestamp = get_timestamp(data)
-    now = datetime.fromtimestamp(timestamp / 1000)
-
-    # create sid and task queue
-    sid = cid + now.strftime("%Y%m%d%H%M%S")
-    queue = asyncio.Queue()
-
-    # call all model's start method
-    await start_all_models(sid, timestamp)
-
-    # create a consumer task
-    consumer_task = asyncio.create_task(consume_frame(queue))
-
-    # save session id, task queue, and the consumer task to this connection
-    await sio.save_session(
-        cid, {"sid": sid, "queue": queue, "consumer_task": consumer_task}
-    )
-
-    logger.debug(
-        f"session_start at {datetime.fromtimestamp(timestamp / 1000)}, sid {sid}"
-    )
-    return success_ack()
-
-
-@sio.event
-async def session_end(cid: str, data: bytes = bytes()):
-    if len(data) < 8:
-        return error_ack("Data length is less than 8 bytes")
-
-    # check if session_end is already called
-    connection_data = await sio.get_session(cid)
-    sid = connection_data.get("sid")
-    if sid is None:
-        return error_ack("Session is not running")
-
-    # get timestamp from the data
-    timestamp = get_timestamp(data)
-
-    # abort the task if it's still processing any frame
-    consumer_task: asyncio.Task | None = connection_data.get("consumer_task")
-    if consumer_task is not None:
-        consumer_task.cancel()  # schedule the cancellation
+async def offer(request: web.Request) -> web.Response:
+    try:
+        params = await request.json()
+        offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
+    except:  # noqa: E722
         try:
-            await consumer_task  # wait for the task to be actually cancelled
-        except asyncio.CancelledError:
+            text = await request.text()
+            logger.debug(
+                "Received invalid offer payload from %s: %s", request.remote, text
+            )
+        except UnicodeDecodeError:
             pass
-        del consumer_task  # remove the reference to the task
 
-    # call all model's end method
-    await end_all_models(sid, timestamp)
+        return web.Response(
+            content_type="application/json",
+            headers={"Acceppt": "application/json"},
+            text=json.dumps({"sdp": None, "type": None}),
+            status=400,
+        )
 
-    # clear remaining session data in the queue (if any)
-    # TODO: do we actually need to clear the queue?
-    # after clearing the reference to the task and the queue, all data will be GC-ed
+    pc = RTCPeerConnection()
+    pc_id = str(uuid.uuid4())
+    pcs.add(pc)
 
-    # clear the connection data
-    # Note: Not sure if sio holds a strong or weak reference to connection_data,
-    # so reset sio's reference first, before we del connection_data
-    await sio.save_session(cid, {"sid": None, "queue": None, "consumer_task": None})
-    del connection_data
+    logger.info("PeerConnection (%s) created for %s", pc_id, request.remote)
 
-    logger.debug(
-        f"session_end at {datetime.fromtimestamp(timestamp / 1000)}, sid {sid}"
+    # prepare local media
+    if args.record_to:
+        recorder = MediaRecorder(args.record_to)
+    else:
+        recorder = MediaBlackhole()
+
+    @pc.on("datachannel")
+    def on_datachannel(channel):  # type: ignore
+        @channel.on("message")
+        def on_message(message):
+            if isinstance(message, str) and message.startswith("ping"):
+                channel.send("pong" + message[4:])
+
+    @pc.on("connectionstatechange")
+    async def on_connectionstatechange():  # type: ignore
+        logger.info("PeerConnection (%s) state is %s", pc_id, pc.connectionState)
+        if pc.connectionState == "failed":
+            await pc.close()
+            pcs.discard(pc)
+
+    @pc.on("track")
+    def on_track(track: MediaStreamTrack):  # type: ignore
+        logger.info(
+            "PeerConnection (%s) received %s track with id %s and type %s",
+            pc_id,
+            track.kind,
+            track.id,
+            type(track),
+        )
+
+        if track.kind == "audio":
+            # We don't care about audio. Just save it for future convenience
+            if args.record_to:
+                recorder.addTrack(VideoTransformTrack(track, pc_id))
+
+        elif track.kind == "video":
+            # Should be this subclass according to log. Cast for IDE code completion.
+            track = cast(RemoteStreamTrack, track)
+
+            # Mark session start
+            broker.start_session(pc_id, 0)
+
+            # This sends (forwards) the video back to every client
+            # pc.addTrack(relay.subscribe(track))
+
+            # This adds the track to the file writer
+            if args.record_to:
+                recorder.addTrack(VideoTransformTrack(track, pc_id))
+
+            # Determine the start/stop of recorder based on the track
+            @track.on("ended")
+            async def on_ended():
+                logger.info(f"PeerConnection ({pc_id}) video track {track.id} ended")
+
+                # Mark session end
+                broker.end_session(pc_id)
+
+                # TODO: Sometimes the line below throws an error "non monotonically increasing dts to muxer in stream 0"
+                # Don't now why and how to fully fix it
+                # The fix in https://github.com/aiortc/aiortc/issues/580 is already applied
+                await recorder.stop()
+
+    # handle offer
+    await pc.setRemoteDescription(offer)
+    await recorder.start()
+
+    # send answer
+    # `answer` will never be null if we look into the source code.
+    # The type checking is wrong.
+    answer = await pc.createAnswer()
+    await pc.setLocalDescription(answer)  # type: ignore
+
+    logger.debug("Receiving remote SDP %s", pc.remoteDescription)
+    logger.debug("Responding with local SDP %s", pc.localDescription)
+
+    return web.json_response(
+        {"sdp": pc.localDescription.sdp, "type": pc.localDescription.type}
     )
-    return success_ack()
 
 
-@sio.event
-async def frame(cid: str, data: bytes = bytes()) -> str:
-    if len(data) < 8:
-        return error_ack("Data length is less than 8 bytes")
-
-    # check if session_end is already called (should not)
-    connection_data = await sio.get_session(cid)
-    sid = connection_data.get("sid")
-    queue: asyncio.Queue[FrameData] = connection_data.get("queue")
-    if sid is None:
-        return error_ack("Session is not running")
-    if queue is None:
-        # This should not happen
-        # Because the queue is deleted right at session_end
-        return error_ack("Internal error: queue is not initialized")
-
-    # create a FrameData and put it into the queue
-    try:
-        frame_data = FrameData(data, cid, sid)
-    except UnidentifiedImageError:
-        return error_ack("Image is corrupted or not in PNG format")
-
-    try:
-        queue.put_nowait(frame_data)
-    except asyncio.QueueFull:
-        return error_ack("Queue is full")
-
-    return success_ack()
-
-
-@sio.on("*")
-async def any_event(event: str, cid: str, data: Any):
-    logger.debug(f"Unregistered event {event} received with data {data} from {cid}")
-    return error_ack("Unregistered event")
-
-
-async def start_all_models(sid: str, timestamp: int):
-    await asyncio.gather(
-        *[asyncio.to_thread(model.start, sid, timestamp) for model in MODELS]
-    )
-
-
-async def end_all_models(sid: str, timestamp: int):
-    await asyncio.gather(
-        *[asyncio.to_thread(model.end, sid, timestamp) for model in MODELS]
-    )
-
-
-def process_frame_all_models(
-    sid, timestamp, frame
-) -> asyncio.Future[list[dict | None]]:
-    return asyncio.gather(
-        *[
-            asyncio.to_thread(model.forward_single_frame, sid, frame, timestamp)
-            for model in MODELS
-        ]
-    )
-
-
-def success_ack(data: dict = {}) -> str:
-    return json.dumps({"success": True, **data}, ensure_ascii=False)
-
-
-def error_ack(msg: str = "") -> str:
-    return '{"success": false, "error": "%s"}' % msg
+async def on_shutdown(app):
+    # close peer connections
+    coros = [pc.close() for pc in pcs]
+    await asyncio.gather(*coros)
+    pcs.clear()
 
 
 if __name__ == "__main__":
-    if is_dev:
-        logger.setLevel(logging.DEBUG)
-
-    print(
-        f"Starting with logger level {logging.getLevelName(logger.getEffectiveLevel())}"
+    parser = argparse.ArgumentParser(description="HKSI WebRTC server")
+    parser.add_argument("--ssl", type=bool, default=False, help="Use SSL")
+    parser.add_argument(
+        "--cert-file",
+        default=os.path.join(ROOT, "ssl", "cert.pem"),
+        help="SSL certificate file (for HTTPS). Default is ./ssl/cert.pem",
     )
+    parser.add_argument(
+        "--key-file",
+        default=os.path.join(ROOT, "ssl", "key.pem"),
+        help="SSL key file (for HTTPS). Default is ./ssl/key.pem",
+    )
+    parser.add_argument(
+        "--host", default="0.0.0.0", help="Host for HTTP server (default: 0.0.0.0)"
+    )
+    parser.add_argument(
+        "--port", type=int, default=8080, help="Port for HTTP server (default: 8080)"
+    )
+    parser.add_argument("--record-to", help="Write received media to a file.")
+    parser.add_argument("--verbose", "-v", action="count")
+    args = parser.parse_args()
 
-    # web.run_app(app, host=HOST, port=PORT, ssl_context=ssl_context)
-    web.run_app(app, host=HOST, port=PORT)
+    if args.verbose:
+        console_handler.setLevel(logging.DEBUG)
+    av_logging.set_level(av_logging.ERROR)  # Internal logging of the av package
+
+    if args.ssl:
+        ssl_context = ssl.SSLContext()
+        ssl_context.load_cert_chain(args.cert_file, args.key_file)
+    else:
+        ssl_context = None
+    catcher = Catcher()
+    app = web.Application(middlewares=[catcher.middleware])
+    app.on_shutdown.append(on_shutdown)
+    app.router.add_post("/offer", offer)
+    web.run_app(
+        app, access_log=None, host=args.host, port=args.port, ssl_context=ssl_context
+    )
