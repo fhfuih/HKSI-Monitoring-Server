@@ -32,9 +32,10 @@ from av.video.frame import VideoFrame
 from broker import Broker
 from models.mock_model_1 import MockModel1
 from models.mock_model_2 import MockModel2
+from models.fatigue_model import FatigueModel
 
 ROOT = os.path.dirname(__file__)
-MODELS = [MockModel1, MockModel2]
+MODELS = [FatigueModel]
 
 # Logs
 logger = logging.getLogger("HKSI WebRTC")
