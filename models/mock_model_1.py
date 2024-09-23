@@ -25,7 +25,8 @@ class MockModel1(BaseModel):
 
         # Example: return a final conclusive value (e.g., the average over the 30 seconds)
         return {
-            "HR": "1",
+            "hr": 80 + random.randint(-5, 5),
+            "hrv": 70 + random.randint(-5, 5),
         }
 
     def frame(
@@ -45,7 +46,8 @@ class MockModel1(BaseModel):
 
         # Example: return a value when finishing a certain frame
         return not_none and {
-            "HR": "1",
+            "hr": 100,
+            "hrv": 20,
             "sid": sid,
             "HR_resp_ts": time.time(),
             "HR_process_time": sleep_time,

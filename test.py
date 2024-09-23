@@ -1,35 +1,53 @@
 import argparse
 import asyncio
 import logging
+from enum import Enum
+from typing import Optional, Union
 
 import aiohttp
 from aiortc import (
     RTCIceCandidate,
     RTCPeerConnection,
     RTCSessionDescription,
-    VideoStreamTrack,
 )
 from aiortc.contrib.media import MediaBlackhole, MediaPlayer, MediaRecorder
 from av.video.frame import VideoFrame
 
+Role = Enum("Role", ["offer", "answer"])
 
-async def run(pc, player, recorder, role):
+
+async def run(
+    pc: RTCPeerConnection,
+    player: Optional[MediaPlayer],
+    recorder: Union[MediaBlackhole, MediaRecorder],
+    role: Role,
+):
     # a future that only resolves when the player is done
     future = asyncio.get_running_loop().create_future()
 
     def add_tracks():
-        if not player:
-            return
+        # Data channel
+        data_channel = pc.createDataChannel("data")
 
-        if player.audio:
+        @data_channel.on("open")
+        def on_data_channel_open():
+            print("Data channel opened")
+
+        @data_channel.on("message")
+        def on_data_channel_message(message):
+            print("Data channel message:", message)
+
+        # Media tracks
+        if player and player.audio:
             pc.addTrack(player.audio)
             print("Adding audio track")
 
-        if player.video:
+        if player and player.video:
             track = player.video
 
             @track.on("ended")
             async def on_ended():
+                print("Video track end")
                 await pc.close()
                 future.set_result(None)
 
@@ -43,13 +61,14 @@ async def run(pc, player, recorder, role):
 
     @pc.on("connectionstatechange")
     async def on_connectionstatechange():
-        print("Connection state is %s", pc.connectionState)
+        print("Connection state is", pc.connectionState)
         if pc.connectionState == "failed":
             await pc.close()
             future.set_result(None)
 
-    if role == "offer":
-        # send offer
+    if role != "offer":
+        raise NotImplementedError("The test only supports offer role for now")
+    else:
         add_tracks()
         await pc.setLocalDescription(await pc.createOffer())
         offer_sdp = pc.localDescription.sdp

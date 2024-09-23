@@ -25,7 +25,9 @@ class MockModel2(BaseModel):
         print(
             f"222 {self.name} ended at {datetime.fromtimestamp(timestamp/1000) if timestamp else 'unknown time'} with sid {sid}"
         )
-        return lib.get_result()
+        a = lib.get_result()
+        a["fatigue"] = 0.999
+        return a
 
     def frame(
         self, sid: Hashable, frame: np.ndarray, timestamp: int, *args, **kwargs
