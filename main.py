@@ -3,10 +3,10 @@ import asyncio
 import json
 import logging
 import os
-from pathlib import Path
 import ssl
-import warnings
 import uuid
+import warnings
+from pathlib import Path
 from typing import Awaitable, Optional, cast
 
 import av
@@ -39,6 +39,7 @@ MODELS = [MockModel1, MockModel2]
 # Logs
 logger = logging.getLogger("HKSI WebRTC")
 logger.setLevel(logging.DEBUG)
+logger.propagate = False
 
 console_handler = logging.StreamHandler()
 console_handler.setLevel(logging.INFO)
@@ -128,11 +129,14 @@ async def offer(request: web.Request) -> web.Response:
         logger.info(
             "PeerConnection (%s) connected to data channel %s", pc_id, channel.id
         )
-        # Do not handle incoming messages in the data channel
-        # @channel.on("message")
-        # def on_message(message):
-        #     if isinstance(message, str) and message.startswith("ping"):
-        #         channel.send("pong" + message[4:])
+
+        # Handle session-ending messages in the data channel
+        @channel.on("message")
+        def on_message(message):
+            logger.info("PeerConnection (%s) received message %s", pc_id, message)
+            if isinstance(message, str) and message.strip() == "end session":
+                # Mark session end
+                broker.end_session(pc_id)
 
         # Let broker emit prediction data through datachannel
         async def send_data(data: Optional[dict]):
@@ -177,15 +181,14 @@ async def offer(request: web.Request) -> web.Response:
             # pc.addTrack(relay.subscribe(track))
 
             # This adds the track to the file writer
-            recorder.addTrack(VideoTransformTrack(track, pc_id))
+            # NOTE: CANNOT USE `track` ever since creating a transformation
+            transformed_track = VideoTransformTrack(track, pc_id)
+            recorder.addTrack(transformed_track)
 
             # Determine the start/stop of recorder based on the track
             @track.on("ended")
             async def on_ended():
                 logger.info(f"PeerConnection ({pc_id}) video track {track.id} ended")
-
-                # Mark session end
-                broker.end_session(pc_id)
 
                 # TODO: Sometimes the line below throws an error "non monotonically increasing dts to muxer in stream 0"
                 # Don't now why and how to fully fix it

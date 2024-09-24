@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import json
 import logging
 from enum import Enum
 from typing import Optional, Union
@@ -23,7 +24,8 @@ async def run(
     role: Role,
 ):
     # a future that only resolves when the player is done
-    future = asyncio.get_running_loop().create_future()
+    loop = asyncio.get_running_loop()
+    future = loop.create_future()
 
     def add_tracks():
         # Data channel
@@ -34,8 +36,16 @@ async def run(
             print("Data channel opened")
 
         @data_channel.on("message")
-        def on_data_channel_message(message):
+        async def on_data_channel_message(message):
             print("Data channel message:", message)
+            message_obj: dict = json.loads(message)
+            if message_obj.get("final", False):
+                print("The test client receives the `end` data.", message_obj)
+                print("Closing the connection in 3 seconds...")
+                await asyncio.sleep(3)
+
+                await pc.close()
+                future.set_result(None)
 
         # Media tracks
         if player and player.audio:
@@ -47,12 +57,49 @@ async def run(
 
             @track.on("ended")
             async def on_ended():
-                print("Video track end")
-                await pc.close()
-                future.set_result(None)
+                print("Video track end.")
+                print(
+                    "The test client will wait for the server to send an `end` data, and exit itself after that."
+                )
+                print(
+                    "In the real client, the WebRTC connection will be closed after, but may not be immediately after, the `end` data."
+                )
+
+                # Telling the server to end ML models
+                data_channel.send("end session")
+
+                # Removing the video track. This is actually not required.
+                # And in standard WebRTC, this will not notify remote side of track removal
+                # somehow in python aiortc, it can notify the remote
+                # for transceiver in pc.getTransceivers():
+                #     # print(f"Transceiver ${transceiver.kind}, ${transceiver.stopped}")
+                #     if transceiver.kind == "video" or transceiver.kind == "audio":
+                #         await transceiver.stop()
+                #     # print(f"Transceiver ${transceiver.kind}, ${transceiver.stopped}")
 
             pc.addTrack(track)
             print("Adding video track")
+
+    async def negotiate():
+        await pc.setLocalDescription(await pc.createOffer())
+        offer_sdp = pc.localDescription.sdp
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                "http://localhost:8080/offer", json={"sdp": offer_sdp, "type": "offer"}
+            ) as response:
+                if response.status != 200:
+                    print("Failed to send offer")
+                    return
+                params = await response.json()
+                obj = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
+
+        if isinstance(obj, RTCSessionDescription):
+            await pc.setRemoteDescription(obj)
+            await recorder.start()
+        elif isinstance(obj, RTCIceCandidate):  # type: ignore
+            await pc.addIceCandidate(obj)
+        else:
+            print("Unknown message", repr(obj))  # type: ignore
 
     @pc.on("track")
     def on_track(track):
@@ -68,28 +115,9 @@ async def run(
 
     if role != "offer":
         raise NotImplementedError("The test only supports offer role for now")
-    else:
-        add_tracks()
-        await pc.setLocalDescription(await pc.createOffer())
-        offer_sdp = pc.localDescription.sdp
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                "http://localhost:8080/offer", json={"sdp": offer_sdp, "type": "offer"}
-            ) as response:
-                if response.status != 200:
-                    print("Failed to send offer")
-                    return
-                params = await response.json()
-                obj = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
 
-    # consume signaling
-    if isinstance(obj, RTCSessionDescription):
-        await pc.setRemoteDescription(obj)
-        await recorder.start()
-    elif isinstance(obj, RTCIceCandidate):  # type: ignore
-        await pc.addIceCandidate(obj)
-    else:
-        print("Unknown message", repr(obj))  # type: ignore
+    add_tracks()
+    await negotiate()
 
     await future
 
