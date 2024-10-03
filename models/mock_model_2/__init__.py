@@ -26,7 +26,7 @@ class MockModel2(BaseModel):
             f"222 {self.name} ended at {datetime.fromtimestamp(timestamp/1000) if timestamp else 'unknown time'} with sid {sid}"
         )
         a = lib.get_result()
-        a["fatigue"] = 0.999
+        a["fatigue"] = 0.213
         return a
 
     def frame(

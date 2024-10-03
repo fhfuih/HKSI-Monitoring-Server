@@ -25,8 +25,8 @@ class MockModel1(BaseModel):
 
         # Example: return a final conclusive value (e.g., the average over the 30 seconds)
         return {
-            "hr": 80 + random.randint(-5, 5),
-            "hrv": 70 + random.randint(-5, 5),
+            "hr": 80.0,
+            "hrv": 70.0,
         }
 
     def frame(
@@ -38,16 +38,15 @@ class MockModel1(BaseModel):
 
         sleep_time = 0.3  # random.uniform(0.5, 2)
         time.sleep(sleep_time)
-        not_none = random.choice((None, True, True, True, True))
 
         print(
             f"111 {self.name} finish processing sid({sid})'s frame@{datetime.fromtimestamp(timestamp/1000)}"
         )
 
         # Example: return a value when finishing a certain frame
-        return not_none and {
-            "hr": 100,
-            "hrv": 20,
+        return {
+            "hr": 80.0 + random.randint(-5, 5),
+            "hrv": 70.0 + random.randint(-5, 5),
             "sid": sid,
             "HR_resp_ts": time.time(),
             "HR_process_time": sleep_time,

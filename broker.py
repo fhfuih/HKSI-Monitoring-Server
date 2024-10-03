@@ -1,6 +1,6 @@
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Hashable
 from dataclasses import dataclass
 from enum import Enum
 from queue import Queue, SimpleQueue
@@ -11,15 +11,14 @@ import numpy as np
 
 from models.base_model import BaseModel
 
-logger = logging.getLogger("BrokerDebug")
-logging.basicConfig(level=logging.WARNING)
-
+logger = logging.getLogger("HKSI WebRTC")
 
 ThreadActionType = Enum("ThreadActionType", ["Start", "Frame", "End"])
 
 
 class ThreadAction(NamedTuple):
     type: ThreadActionType
+    sid: Hashable
     timestamp: Optional[int]
     data: Optional[np.ndarray]
 
@@ -28,31 +27,23 @@ ActionQueue = Queue[ThreadAction]
 OnDataCallback = Callable[[Optional[dict]], None]
 
 # Monkey-patch debug info
-setattr(Queue, "__del__", lambda self: logger.debug("__del__ ActionQueue"))
+setattr(Queue, "__del__", lambda self: logger.debug("__del__ Queue"))
 
 
 class ModelManagerWorker(Thread):
     """
-    The class that manages all ML models in one consecutive prediction session.
-    It exits when receiving an 'end' action, forwarding it to all managed models, and waiting all models to exit.
+    The class that manages all ML models.
     """
 
     def __init__(
         self,
         models: list[Type[BaseModel]],
-        sid: str,
-        on_exit: Callable,
-        on_intermediate_data: Optional[OnDataCallback],
-        on_end_data: Optional[OnDataCallback],
+        broker,
         *args,
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
-        self.__sid = sid
-        self.__on_exit = on_exit
-        self._on_intermediate_data = on_intermediate_data
-        self._on_end_data = on_end_data
-
+        self._broker = broker
         self.__queue = ActionQueue()
         self.__scheduled_end = False
 
@@ -65,7 +56,7 @@ class ModelManagerWorker(Thread):
 
         # Create model workers and start all of them
         self.__model_workers = [
-            ModelWorker(M(), sid, self.__barrier, *args, **kwargs) for M in models
+            ModelWorker(M(), self.__barrier, *args, **kwargs) for M in models
         ]
 
         for mw in self.__model_workers:
@@ -75,27 +66,28 @@ class ModelManagerWorker(Thread):
         logger.debug("__del__ ModelManagerWorker")
 
     ### Public methods
-    def add_start(self, timestamp: int):
-        self.__queue.put(ThreadAction(ThreadActionType.Start, timestamp, None))
+    def add_start(self, sid: Hashable, timestamp: int):
+        self.__queue.put(ThreadAction(ThreadActionType.Start, sid, timestamp, None))
 
-    def add_end(self, timestamp: Optional[int]):
+    def add_end(self, sid: Hashable, timestamp: Optional[int]):
         # Remove all queued frames
         while not self.__queue.empty():
             self.__queue.get()
 
         # Insert the end frame
-        self.__queue.put(ThreadAction(ThreadActionType.End, timestamp, None))
+        self.__queue.put(ThreadAction(ThreadActionType.End, sid, timestamp, None))
 
-    def add_frame(self, timestamp: int, data: np.ndarray):
-        self.__queue.put(ThreadAction(ThreadActionType.Frame, timestamp, data))
+    def add_frame(self, sid: Hashable, timestamp: int, data: np.ndarray):
+        self.__queue.put(ThreadAction(ThreadActionType.Frame, sid, timestamp, data))
 
     ### Thread routine
     def run(self) -> None:
         while not self.__scheduled_end:
             # Waits until another action is received
             action = self.__queue.get()
+            sid = action.sid
 
-            # Detect if this is an "end" action
+            # Detect if this is an "end" action, exit the loop after handling end
             if action.type == ThreadActionType.End:
                 self.__scheduled_end = True
 
@@ -131,30 +123,40 @@ class ModelManagerWorker(Thread):
                 result["final"] = action.type == ThreadActionType.End
 
             # Pass the results back to the external
+            session_asset: Optional[SessionAsset] = self._broker._sessions.get(
+                sid, None
+            )
+            if session_asset is None:
+                on_intermediate_data = None
+                on_end_data = None
+            else:
+                on_intermediate_data = session_asset.on_intermediate_data
+                on_end_data = session_asset.on_end_data
             if (
                 action.type == ThreadActionType.Frame
-                and self._on_intermediate_data is not None
+                and on_intermediate_data is not None
             ):
-                self._on_intermediate_data(result)
-            if action.type == ThreadActionType.End and self._on_end_data is not None:
-                self._on_end_data(result)
+                on_intermediate_data(result)
+            elif action.type == ThreadActionType.End and on_end_data is not None:
+                on_end_data(result)
 
-            # Indicate that the previous task is done. Only useful in conjunction with `queue.join()`
+            # Indicate that the previous task is done. Only useful if calling `self.__queue.join()` in the future
             self.__queue.task_done()
 
-        # Exiting the loop when assigning the "end" action to all models.
-        # Wait for them to actually end.
+        # Here exited the loop when assigning an "end" action to all models.
+        # Stilll need to wait for all models to finish processing the "end" action and exit.
         for mw in self.__model_workers:
             mw.join()
-        self.__on_exit()
+
         logger.debug("ModelManagerWorker exited")
 
 
 @dataclass
 class SessionAsset:
-    sid: str
-    manager_thread: ModelManagerWorker
+    sid: Hashable
     ending: bool = False
+    on_intermediate_data: Optional[OnDataCallback] = None
+    on_end_data: Optional[OnDataCallback] = None
 
 
 class Broker:
@@ -164,42 +166,31 @@ class Broker:
         on_intermediate_data: Optional[OnDataCallback],
         on_end_data: Optional[OnDataCallback],
     ) -> None:
-        self._sessions: dict[str, SessionAsset] = {}
+        self._sessions: dict[Hashable, SessionAsset] = {}
         self._models = models
         self._on_intermediate_data = on_intermediate_data
         self._on_end_data = on_end_data
 
-    def start_session(self, sid: str, timestamp: int):
+        self.manager_thread = ModelManagerWorker(
+            self._models,
+            self,
+        )
+        self.manager_thread.start()
+        logger.debug("Broker started ModelManagerWorker")
+
+    def start_session(self, sid: Hashable, timestamp: int):
         if sid in self._sessions:
             raise KeyError(f"A session with id {sid} already exists.")
 
-        # Clear broker's reference to the session's assets after the thread ends.
-        # Done via a callback, because we don't want to `manager_thread.join(); del` in end_session
-        # The latter would block the end_session function and the thread that calls it
-        # Maybe(?) that will block the network event handling things.
-        def on_thread_stop():
-            try:
-                del self._sessions[sid]
-            except KeyError:
-                pass
-
         # Prepare the session asset.
-        manager_thread = ModelManagerWorker(
-            self._models,
-            sid,
-            on_thread_stop,
-            self._on_intermediate_data,
-            self._on_end_data,
-        )
-        self._sessions[sid] = SessionAsset(sid=sid, manager_thread=manager_thread)
+        self._sessions[sid] = SessionAsset(sid=sid)
+        logger.debug("Broker(%s) prepared session assets", sid)
 
         # Tell ML models to start
-        manager_thread.add_start(timestamp)
+        self.manager_thread.add_start(sid, timestamp)
+        logger.debug("Broker(%s) told ML models to start", sid)
 
-        # Start the manager thread
-        manager_thread.start()
-
-    def end_session(self, sid: str, timestamp: Optional[int] = None):
+    def end_session(self, sid: Hashable, timestamp: Optional[int] = None):
         session_asset = self._sessions.get(sid, None)
         if session_asset is None:
             # Cannot find such a session. All good.
@@ -213,9 +204,9 @@ class Broker:
         session_asset.ending = True
 
         # Tell ML models to end
-        session_asset.manager_thread.add_end(timestamp)
+        self.manager_thread.add_end(sid, timestamp)
 
-    def frame(self, sid: str, data: np.ndarray, timestamp: int):
+    def frame(self, sid: Hashable, data: np.ndarray, timestamp: int):
         session_asset = self._sessions.get(sid, None)
         if session_asset is None:
             # Cannot find such a session. All good.
@@ -226,25 +217,23 @@ class Broker:
             return
 
         # Tell ML models to queue this frame
-        session_asset.manager_thread.add_frame(timestamp, data)
+        self.manager_thread.add_frame(sid, timestamp, data)
 
     def set_data_handler(
         self,
-        sid: str,
+        sid: Hashable,
         on_intermediate_data: OnDataCallback,
         on_end_data: OnDataCallback,
     ):
-        manager = self._sessions[sid].manager_thread
-        manager._on_intermediate_data = on_intermediate_data
-        manager._on_end_data = on_end_data
+        session_asset = self._sessions[sid]
+        session_asset.on_intermediate_data = on_intermediate_data
+        session_asset.on_end_data = on_end_data
 
 
 class ModelWorker(Thread):
     """A thread for a model"""
 
-    def __init__(
-        self, model: BaseModel, sid: str, barrier: Barrier, *args, **kwargs
-    ) -> None:
+    def __init__(self, model: BaseModel, barrier: Barrier, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
         # This is the queue local to each model.
@@ -262,61 +251,58 @@ class ModelWorker(Thread):
         self.timestamp = None
 
         self.__model = model
-        self.__sid = sid
         self.__barrier = barrier
 
         self.__started = False  # Thread has an attr called _started. Careful not to override it haha!
         self.__scheduled_end = False
 
     def run(self) -> None:
-        logger.debug(f"Worker started for model {self.__model.name}")
+        logger.debug(f"Worker started for model {self.__model.name}.")
+
         while not self.__scheduled_end:
             # Wait until a new action is assigned by the manager
             action = self.queue.get()
+            sid = action.sid
 
             if action.type == ThreadActionType.Frame:
                 if not self.__started:
-                    logger.warning(
-                        "In session (%s), skipping frame before start", self.__sid
-                    )
+                    logger.warning("In session (%s), skipping frame before start", sid)
                     continue
                 if action.data is None or action.timestamp is None:
                     logger.warning(
                         "In session (%s), skipping frame with incomplete data %s %s",
-                        self.__sid,
+                        sid,
                         action.data.shape if action.data is not None else None,
                         action.timestamp,
                     )
                     continue
-                self.output = self.__model.frame(
-                    self.__sid, action.data, action.timestamp
-                )
+                self.output = self.__model.frame(sid, action.data, action.timestamp)
                 self.timestamp = action.timestamp
 
             elif action.type == ThreadActionType.Start:
                 if self.__started:
                     logger.warning(
-                        "In session (%s), skipping repetitive start action", self.__sid
+                        "In session (%s), skipping repetitive start action", sid
                     )
                     continue
                 if action.timestamp is None:
                     logger.warning(
                         "In session (%s), skipping start action without timestamp",
-                        self.__sid,
+                        sid,
                     )
                     continue
-                self.output = self.__model.start(self.__sid, action.timestamp)
+                self.output = self.__model.start(sid, action.timestamp)
                 self.timestamp = action.timestamp
                 self.__started = True
 
             elif action.type == ThreadActionType.End:
                 if not self.__started:
                     logger.warning(
-                        "In session (%s), skipping End action before Start", self.__sid
+                        "In session (%s), skipping End action before Start", sid
                     )
                     continue
                 self.__scheduled_end = True
-                self.output = self.__model.end(self.__sid, action.timestamp)
+                self.output = self.__model.end(sid, action.timestamp)
                 self.timestamp = action.timestamp
                 self.__started = False
 

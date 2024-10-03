@@ -30,12 +30,14 @@ from av import logging as av_logging
 from av.video.frame import VideoFrame
 
 from broker import Broker
+from models.base_model import BaseModel
+from models.fatigue_model import FatigueModel
 from models.mock_model_1 import MockModel1
 from models.mock_model_2 import MockModel2
-from models.fatigue_model import FatigueModel
 
 ROOT = os.path.dirname(__file__)
-MODELS = [FatigueModel]
+MODELS: list[type[BaseModel]] = [FatigueModel]
+# MODELS = [MockModel1, MockModel2]
 
 # Logs
 logger = logging.getLogger("HKSI WebRTC")
@@ -112,12 +114,12 @@ async def offer(request: web.Request) -> web.Response:
     pc_id = str(uuid.uuid4())
     pcs.add(pc)
 
-    logger.info("PeerConnection (%s) created for %s", pc_id, request.remote)
+    logger.info("PC(%s) created for %s", pc_id, request.remote)
 
     # prepare local media
     if record_path:
         file_name = record_path / f"{pc_id}.mp4"
-        logger.info("PeerConnection (%s) recorded to %s", pc_id, file_name)
+        logger.info("PC(%s) recorded to %s", pc_id, file_name)
         recorder = MediaRecorder(file_name)
     else:
         recorder = MediaBlackhole()
@@ -127,14 +129,12 @@ async def offer(request: web.Request) -> web.Response:
 
     @pc.on("datachannel")
     def on_datachannel(channel: RTCDataChannel):  # type: ignore
-        logger.info(
-            "PeerConnection (%s) connected to data channel %s", pc_id, channel.id
-        )
+        logger.info("PC(%s) connected to data channel %s", pc_id, channel.id)
 
         # Handle session-ending messages in the data channel
         @channel.on("message")
         def on_message(message):
-            logger.info("PeerConnection (%s) received message %s", pc_id, message)
+            logger.info("PC(%s) received message %s", pc_id, message)
             if isinstance(message, str) and message.strip() == "end session":
                 # Mark session end
                 broker.end_session(pc_id)
@@ -152,7 +152,7 @@ async def offer(request: web.Request) -> web.Response:
 
     @pc.on("connectionstatechange")
     async def on_connectionstatechange():  # type: ignore
-        logger.info("PeerConnection (%s) state is %s", pc_id, pc.connectionState)
+        logger.info("PC(%s) state is %s", pc_id, pc.connectionState)
         if pc.connectionState == "failed":
             await pc.close()
             pcs.discard(pc)
@@ -160,7 +160,7 @@ async def offer(request: web.Request) -> web.Response:
     @pc.on("track")
     def on_track(track: MediaStreamTrack):  # type: ignore
         logger.info(
-            "PeerConnection (%s) received %s track with id %s and type %s",
+            "PC(%s) received %s track with id %s and type %s",
             pc_id,
             track.kind,
             track.id,
@@ -177,6 +177,7 @@ async def offer(request: web.Request) -> web.Response:
 
             # Mark session start
             broker.start_session(pc_id, 0)
+            logger.debug(f"PC({pc_id}) model session started")
 
             # This sends (forwards) the video back to every client
             # pc.addTrack(relay.subscribe(track))
@@ -185,11 +186,12 @@ async def offer(request: web.Request) -> web.Response:
             # NOTE: CANNOT USE `track` ever since creating a transformation
             transformed_track = VideoTransformTrack(track, pc_id)
             recorder.addTrack(transformed_track)
+            logger.debug(f"PC({pc_id}) prediction and recording hooks are registered")
 
             # Determine the start/stop of recorder based on the track
             @track.on("ended")
             async def on_ended():
-                logger.info(f"PeerConnection ({pc_id}) video track {track.id} ended")
+                logger.info(f"PC({pc_id}) video track {track.id} ended")
 
                 # TODO: Sometimes the line below throws an error "non monotonically increasing dts to muxer in stream 0"
                 # Don't now why and how to fully fix it
@@ -206,8 +208,8 @@ async def offer(request: web.Request) -> web.Response:
     answer = await pc.createAnswer()
     await pc.setLocalDescription(answer)  # type: ignore
 
-    logger.debug("Receiving remote SDP %s", pc.remoteDescription)
-    logger.debug("Responding with local SDP %s", pc.localDescription)
+    # logger.debug("Receiving remote SDP %s", pc.remoteDescription)
+    # logger.debug("Responding with local SDP %s", pc.localDescription)
 
     return web.json_response(
         {"sdp": pc.localDescription.sdp, "type": pc.localDescription.type}
