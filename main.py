@@ -31,12 +31,15 @@ from av.video.frame import VideoFrame
 
 from broker import Broker
 from models.base_model import BaseModel
+from models.eye_bag_model import EyeBagModel
 from models.fatigue_model import FatigueModel
 from models.mock_model_1 import MockModel1
 from models.mock_model_2 import MockModel2
+from models.pimple_model import PimpleModel
 
 ROOT = os.path.dirname(__file__)
-MODELS: list[type[BaseModel]] = [FatigueModel]
+MODELS: list[type[BaseModel]] = [EyeBagModel, PimpleModel]
+# MODELS: list[type[BaseModel]] = [FatigueModel]
 # MODELS = [MockModel1, MockModel2]
 
 # Logs
@@ -141,7 +144,12 @@ async def offer(request: web.Request) -> web.Response:
 
         # Let broker emit prediction data through datachannel
         async def send_data(data: Optional[dict]):
-            channel.send(json.dumps(data, ensure_ascii=False))
+            d = json.dumps(
+                data,
+                ensure_ascii=False,
+                default=lambda o: logger.error(f"can't serialize {o}") or None,
+            )
+            channel.send(d)
 
         def on_prediction(data: Optional[dict]):
             if channel.readyState == "closed":

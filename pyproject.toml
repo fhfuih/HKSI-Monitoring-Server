@@ -24,6 +24,7 @@ timm = "^1.0.9"
 einops = "^0.8.0"
 accelerate = "^0.34.2"
 sentencepiece = "^0.2.0"
+dlib = "^19.24.6"
 
 [tool.ruff.lint]
 select = ["D", "I"]
