@@ -38,7 +38,7 @@ from models.mock_model_2 import MockModel2
 from models.pimple_model import PimpleModel
 
 ROOT = os.path.dirname(__file__)
-MODELS: list[type[BaseModel]] = [EyeBagModel, PimpleModel]
+MODELS: list[type[BaseModel]] = [FatigueModel, EyeBagModel, PimpleModel]
 # MODELS: list[type[BaseModel]] = [FatigueModel]
 # MODELS = [MockModel1, MockModel2]
 
