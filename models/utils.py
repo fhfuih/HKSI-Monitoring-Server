@@ -40,6 +40,7 @@ except:
     print("==========", "Using CPU.", sep="\n", file=sys.stderr)
     GPU = torch.device("cpu")
     _gpu_module = torch.cpu
+print(f"Using device {GPU}")
 
 
 def empty_cache():
