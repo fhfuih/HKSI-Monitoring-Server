@@ -43,9 +43,14 @@ class ModelManagerWorker(Thread):
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
+        # A reference to the broker
+        # Note that ModelManagerWorker should expect to exit before the broker object is destroyed
+        # This is expected for now because ModelManagerWorker is a thread object created by broker itself
+        # But if it no longer is, remember to change to weakref to allow python GC broker object
         self._broker = broker
+
+        # Keeps all incoming frames and session start/end commands
         self.__queue = ActionQueue()
-        self.__scheduled_end = False
 
         # barrier.wait() blocks until <count> threads all called wait,
         # and all threads are released simultaneously.
@@ -82,14 +87,10 @@ class ModelManagerWorker(Thread):
 
     ### Thread routine
     def run(self) -> None:
-        while not self.__scheduled_end:
+        while True:
             # Waits until another action is received
             action = self.__queue.get()
             sid = action.sid
-
-            # Detect if this is an "end" action, exit the loop after handling end
-            if action.type == ThreadActionType.End:
-                self.__scheduled_end = True
 
             # Feed the action to all models
             logger.debug(
@@ -132,23 +133,18 @@ class ModelManagerWorker(Thread):
             else:
                 on_intermediate_data = session_asset.on_intermediate_data
                 on_end_data = session_asset.on_end_data
+            # Pass the results back to the external -- intermediate data
             if (
                 action.type == ThreadActionType.Frame
                 and on_intermediate_data is not None
             ):
                 on_intermediate_data(result)
+            # Pass the results back to the external -- end data
             elif action.type == ThreadActionType.End and on_end_data is not None:
                 on_end_data(result)
 
             # Indicate that the previous task is done. Only useful if calling `self.__queue.join()` in the future
             self.__queue.task_done()
-
-        # Here exited the loop when assigning an "end" action to all models.
-        # Stilll need to wait for all models to finish processing the "end" action and exit.
-        for mw in self.__model_workers:
-            mw.join()
-
-        logger.debug("ModelManagerWorker exited")
 
 
 @dataclass
@@ -205,6 +201,7 @@ class Broker:
 
         # Tell ML models to end
         self.manager_thread.add_end(sid, timestamp)
+        logger.debug("Broker(%s) told ML models to stop", sid)
 
     def frame(self, sid: Hashable, data: np.ndarray, timestamp: int):
         session_asset = self._sessions.get(sid, None)
@@ -254,12 +251,14 @@ class ModelWorker(Thread):
         self.__barrier = barrier
 
         self.__started = False  # Thread has an attr called _started. Careful not to override it haha!
-        self.__scheduled_end = False
+
+    def __del__(self):
+        logger.debug("__del__ ModelWorker for %s", self.__model.name)
 
     def run(self) -> None:
         logger.debug(f"Worker started for model {self.__model.name}.")
 
-        while not self.__scheduled_end:
+        while True:
             # Wait until a new action is assigned by the manager
             action = self.queue.get()
             sid = action.sid
@@ -301,7 +300,6 @@ class ModelWorker(Thread):
                         "In session (%s), skipping End action before Start", sid
                     )
                     continue
-                self.__scheduled_end = True
                 self.output = self.__model.end(sid, action.timestamp)
                 self.timestamp = action.timestamp
                 self.__started = False
@@ -311,8 +309,6 @@ class ModelWorker(Thread):
                 f"Before Model {self.__model.name} waits for barrier, there are threads {self.__barrier.n_waiting} waiting"
             )
             self.__barrier.wait()
-
-        logger.debug(f"Worker exited for model {self.__model.name}")
 
 
 if __name__ == "__main__":
