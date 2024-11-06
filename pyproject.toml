@@ -8,7 +8,7 @@ readme = "README.md"
 # version ^1.5 supports 3.7-3.11, version ^1.6 supports 3.9-3.12
 # av is also another indirect dependency. It supports Python >= 3.8.
 # Also, TF and PyTorch supports <= 3.11 to date, we require [3.8, 3.12)
-python = ">=3.8, <3.12"
+python = ">=3.9, <3.12"
 aiohttp = { extras = ["speedups"], version = "^3.10.5" }
 aiohttp-catcher = "^0.3.2"
 aiortc = "^1.9.0"
@@ -25,6 +25,10 @@ einops = "^0.8.0"
 accelerate = "^0.34.2"
 sentencepiece = "^0.2.0"
 dlib = "^19.24.6"
+pandas = "^2.2.3"
+pyampd = "^0.0.1"
+msvc-runtime = "^14.40.33807"
+mediapipe = "0.10.7"
 
 [tool.ruff.lint]
 select = ["D", "I"]
