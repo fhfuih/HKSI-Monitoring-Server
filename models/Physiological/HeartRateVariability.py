@@ -7,7 +7,7 @@ from pyampd.ampd import find_peaks
 from scipy.signal import butter, sosfiltfilt
 from scipy.fft import fft, fftfreq
 from scipy.interpolate import interp1d
-from HKSI_functions import POS
+from .HKSI_functions import POS
 
 
 class model_HRV:
@@ -31,8 +31,8 @@ class model_HRV:
         fs = int(fs)
         
         if interpolate:  
-            interp_function = interp1d(time_data[fs*2:], rPPG_cand, 'cubic') #discard 2 sec of initial signal
-            x_new = np.arange(time_data[fs*2], time_data[-1], 1/interp_freq) 
+            interp_function = interp1d(time_data, rPPG_cand, 'cubic') #discard 2 sec of initial signal
+            x_new = np.arange(time_data[0], time_data[-1], 1/interp_freq) 
             rPPG_cand = interp_function(x_new)
             fs = interp_freq
         
@@ -232,8 +232,8 @@ class model_HRV:
 
         
         result_dictionary = {}
-        result_dictionary['HRV_SDNN'] = HRV_SDNN
-        result_dictionary['HR'] = 1000/np.mean(self.RR)*60
+        result_dictionary['HRV_SDNN'] = np.round(HRV_SDNN,1)
+        result_dictionary['HR'] = np.round(1000/np.mean(self.RR)*60,1)
         result_dictionary['rPPG'] = final_signal
         
         return result_dictionary

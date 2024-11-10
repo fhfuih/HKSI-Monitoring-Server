@@ -1,27 +1,36 @@
 """
 @author: I.O.
 """
-from HKSI_functions import DetectFace
-from HKSI_SkinDetect import SkinDetect
+#from HKSI_functions import DetectFace
+from .HKSI_SkinDetect import SkinDetect
 import numpy as np
-
-
+import dlib
+import cv2
 
 class model_FaceAnalysis:   
     def __init__(self, strength = 0.2):
         self.sd = SkinDetect(strength)
+        self.detector = dlib.get_frontal_face_detector()
         self.count = 0
         self.meanRGB = []
     
     def DetectSkin(self, frame, fs):
         if self.count >= fs*2: #throw away first 2 seconds
-            face = DetectFace(frame, ROI_list=['face'])[0]
-            sd = self.sd
+            frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            faces_detector = self.detector(frame_gray)
+            face_detector = faces_detector[0]
+            x = face_detector.left()
+            y = face_detector.top()
+            w = face_detector.width()
+            h = face_detector.height()
+            face = frame[y:y+h, x:x+w, :]
             
+            
+
             if self.count == fs*2:
-                sd.compute_stats(face)
+                self.sd.compute_stats(face)
     
-            skinFace, Threshold = sd.get_skin(
+            skinFace, Threshold = self.sd.get_skin(
                 face, filt_kern_size=0, verbose=False, plot=False)
             
             b, g, r = self.rgb_mean(skinFace)

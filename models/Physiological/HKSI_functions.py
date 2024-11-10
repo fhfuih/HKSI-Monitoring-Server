@@ -6,13 +6,6 @@ in HKSI project, HKUST, 2023-
 """
 
 import numpy as np
-from pyampd.ampd import find_peaks
-from scipy.signal import butter, sosfiltfilt
-from scipy.fft import fft, fftfreq
-from scipy.interpolate import interp1d
-import mediapipe as mp
-import cv2
-
 
 def POS(meanRGB, fps, step=10):
     """
@@ -55,87 +48,4 @@ def POS(meanRGB, fps, step=10):
 
     rPPG = final_signal
     return rPPG
-
-
-
-def DetectFace(frame, face_box = None, ROI_list=['face', 'forehead', 'left cheek', 'right cheek']):
-
-    mp_face_mesh = mp.solutions.face_mesh
-
-    forehead_pos = [66, 69, 299, 296]
-    left_cheek_pos = [116, 187, 118, 216]
-    right_cheek_pos = [347, 345, 436, 411]
-    
-    height, width, channels = frame.shape
-    with mp_face_mesh.FaceMesh(static_image_mode=True,
-                               max_num_faces=1, min_detection_confidence=0.01) as face_mesh:
-
-        # Convert the BGR image to RGB before processing.
-        results = face_mesh.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-
-        # Print and draw face mesh landmarks on the image.
-        if not results.multi_face_landmarks:
-            if face_box != None:
-                face = frame[face_box[0]:face_box[1], face_box[2]:face_box[3], :]
-            else:
-                return 0
-        else:
-            face_box = []
-            x_list = []
-            y_list = []
-            for face in results.multi_face_landmarks:
-                for landmark in face.landmark:
-                    x = landmark.x
-                    y = landmark.y
-    
-                    relative_x = int(x * width)
-                    relative_y = int(y * height)
-    
-                    x_list.append(relative_x)
-                    y_list.append(relative_y)
-    
-            max_x = max(x_list)
-            min_x = min(x_list)
-
-    
-            max_y = max(y_list)
-            min_y = min(y_list)
-            if min_y < 0:
-                min_y = 0
-    
-            face = frame[min_y:max_y, min_x:max_x, :]
-            face_box.append(min_y)
-            face_box.append(max_y)
-            face_box.append(min_x)
-            face_box.append(max_x)
-                                          
-
-
-
-    result_list = []
-
-    for ROI in ROI_list:
-        if ROI == 'face':
-
-            result_list.append(face)
-        else:
-            if ROI == 'forehead':
-                ROI_pos = forehead_pos
-            elif ROI == 'left cheek':
-                ROI_pos = left_cheek_pos
-            elif ROI == 'right cheek':
-                ROI_pos = right_cheek_pos
-            else:
-                return None
-
-            ROI_x = [x_list[i] - min_x for i in ROI_pos]
-            ROI_y = [y_list[i] - min_y for i in ROI_pos]
-
-            result = face[min(ROI_y): max(
-                ROI_y), min(ROI_x): max(ROI_x), :]
-
-            result_list.append(result)
-
-    return result_list
-
 

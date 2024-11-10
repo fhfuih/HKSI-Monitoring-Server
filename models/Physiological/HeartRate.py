@@ -2,7 +2,7 @@
 
 @author: I.O.
 """
-from HKSI_functions import POS
+from .HKSI_functions import POS
 import numpy as np
 from scipy.signal import butter, sosfiltfilt
 from scipy.fft import fft, fftfreq
@@ -42,36 +42,34 @@ class model_HR:
         signal = self.rPPG_cand
         fs = self.fs
         fft_details = {}
-        HeartRate = 0
         
-        if len(signal) > 10 * fs:
-            
-            sos = butter(order, [min_freq, max_freq],
-                         btype='bandpass', output='sos', fs=fs)
-            rPPG = sosfiltfilt(sos, np.double(signal))
-    
-    
-            if apply_hanning:
-                hanning = np.hanning(len(rPPG))
-                rPPG = hanning * rPPG
-    
-            
-            N = len(rPPG)
-            T = 1 / fs
-    
-            yf = fft(rPPG)
-    
-            freqs = fftfreq(N, T)[:N//2]  # get real valuesof freqs
-    
-            yf = 2.0/N * np.abs(yf[0:N//2])  # get real parts of amplitudes
-    
-            max_idx = np.where(yf == np.amax(yf))
-            highest_freq = float(freqs[max_idx])
-            HeartRate = highest_freq*60
-    
-            fft_details['frequencies'] = freqs
-            fft_details['amplitudes'] = yf
-            fft_details['rPPG'] = rPPG
+        
+        sos = butter(order, [min_freq, max_freq],
+                     btype='bandpass', output='sos', fs=fs)
+        rPPG = sosfiltfilt(sos, np.double(signal))
+
+
+        if apply_hanning:
+            hanning = np.hanning(len(rPPG))
+            rPPG = hanning * rPPG
+
+        
+        N = len(rPPG)
+        T = 1 / fs
+
+        yf = fft(rPPG)
+
+        freqs = fftfreq(N, T)[:N//2]  # get real valuesof freqs
+
+        yf = 2.0/N * np.abs(yf[0:N//2])  # get real parts of amplitudes
+
+        max_idx = np.where(yf == np.amax(yf))
+        highest_freq = float(freqs[max_idx])
+        HeartRate = highest_freq*60
+
+        fft_details['frequencies'] = freqs
+        fft_details['amplitudes'] = yf
+        fft_details['rPPG'] = rPPG
     
         
         return HeartRate, fft_details
