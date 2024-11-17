@@ -1,0 +1,37 @@
+name: "main"
+on:
+  push:
+    branches:
+      - main
+      - cicd
+
+jobs:
+  deploy-plain:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: git pull on remote server
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.REMOTE_SERVER_ADDRESS }}
+          username: ${{ secrets.REMOTE_SERVER_USERNAME }}
+          key: ${{ secrets.REMOTE_SERVER_KEY }}
+          proxy_host: ${{ secrets.JUMP_SERVER_HOST }}
+          proxy_username: ${{ secrets.JUMP_SERVER_USERNAME }}
+          proxy_password: ${{ secrets.JUMP_SERVER_PASSWORD }}
+          script: |
+            cd ${{ secrets.REMOTE_SERVER_PATH }} &&
+            git pull
+      # - name: Restart (all) backend service (use wildcard in REMOTE_SERVICE)
+      #   uses: appleboy/ssh-action@v1.0.3
+      #   with:
+      #     host: ${{ secrets.REMOTE_SERVER_ADDRESS }}
+      #     username: ${{ secrets.REMOTE_SERVER_USERNAME }}
+      #     key: ${{ secrets.REMOTE_SERVER_KEY }}
+      #     proxy_host: ${{ secrets.JUMP_SERVER_HOST }}
+      #     proxy_username: ${{ secrets.JUMP_SERVER_USERNAME }}
+      #     proxy_password: ${{ secrets.JUMP_SERVER_PASSWORD }}
+      #     script: |
+      #       systemctl --user start ${{ secrets.REMOTE_SERVICE }}
