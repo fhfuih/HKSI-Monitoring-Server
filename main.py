@@ -224,6 +224,10 @@ async def offer(request: web.Request) -> web.Response:
     )
 
 
+async def hello(request: web.Request) -> web.Response:
+    return web.Response(text="Hello, world")
+
+
 async def on_shutdown(app):
     # close peer connections
     coros = [pc.close() for pc in pcs]
@@ -285,6 +289,7 @@ if __name__ == "__main__":
     app = web.Application(middlewares=[catcher.middleware])
     app.on_shutdown.append(on_shutdown)
     app.router.add_post("/offer", offer)
+    app.router.add_get("/", hello)
     web.run_app(
         app, access_log=None, host=args.host, port=args.port, ssl_context=ssl_context
     )
