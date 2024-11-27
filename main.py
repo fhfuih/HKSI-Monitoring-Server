@@ -280,7 +280,7 @@ async def main():
     av_logging.set_level(av_logging.ERROR)  # Internal logging of the av package
 
     if args.ssl:
-        ssl_context = ssl.SSLContext()
+        ssl_context = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS_SERVER)
         ssl_context.load_cert_chain(args.cert_file, args.key_file)
     else:
         ssl_context = None
