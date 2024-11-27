@@ -235,7 +235,7 @@ async def on_shutdown(app):
     pcs.clear()
 
 
-if __name__ == "__main__":
+async def main():
     parser = argparse.ArgumentParser(
         description="HKSI WebRTC server",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -286,10 +286,22 @@ if __name__ == "__main__":
         ssl_context = None
 
     catcher = Catcher()
+    await catcher.add_scenarios(*AIOHTTP_SCENARIOS)
     app = web.Application(middlewares=[catcher.middleware])
     app.on_shutdown.append(on_shutdown)
     app.router.add_post("/offer", offer)
     app.router.add_get("/", hello)
+    return app, args, ssl_context
+
+
+if __name__ == "__main__":
+    loop = asyncio.get_event_loop()
+    app, args, ssl_context = loop.run_until_complete(main())
     web.run_app(
-        app, access_log=None, host=args.host, port=args.port, ssl_context=ssl_context
+        app,
+        access_log=None,
+        host=args.host,
+        port=args.port,
+        ssl_context=ssl_context,
+        loop=loop,
     )
