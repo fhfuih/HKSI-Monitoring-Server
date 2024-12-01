@@ -1,246 +1,123 @@
 import time
+from collections import deque
 from datetime import datetime
 from typing import Hashable, Optional
+
 import numpy as np
-import random
-# from dask.array.reductions import mean_agg
+import torch
 
-#from .base_model import BaseModel
 from models.base_model import BaseModel
-from .FaceAnalysis import model_FaceAnalysis
-from .HeartRate import model_HR
-from .HeartRateVariability import model_HRV
+from models.utils import GPU, datetime_from_ms
 
-class HeartRateAndHeartRateVariabilityModel(BaseModel):
-    name = 'HeartRateAndHeartRateVariabilityModel '
+from . import utils
+
+
+class FatigueModel(BaseModel):
+    name = "FatigueModel"
 
     def __init__(self):
         super().__init__()
-        self.fs = 30
 
-        self.FA = model_FaceAnalysis()
-        self.meanRGB = []
+        self.model, self.tokenizer = utils.load_model()
+        self.generation_config = utils.get_generation_config()
+        self.frame_buffer = deque(maxlen=24)
+        self.frame_count = 0
+        self.skip_frames = 10
+        self.rating = -1
 
-        self.hr = []
-
-        self.timeInfo = []
-        self.frameID  = []
-        self.count = 0
-
-    def start(self, sid: Hashable, timestamp: int, *args, **kwargs) -> None:
-        print(
-            f"{self.name} started at {datetime.fromtimestamp(timestamp / 1000)} with sid {sid}"
-        )
-
-    def end(self, sid: Hashable, timestamp: Optional[int], *args, **kwargs) -> dict:
-        print("self.hr: ", self.hr)
-        print(
-            f"{self.name} ended at {datetime.fromtimestamp(timestamp / 1000) if timestamp else 'unknown time'} with sid {sid}"
-        )
-
-        #
-        # print("len(self.meanRGB)", len(self.meanRGB))
-        # print("self.timeInfo", self.timeInfo)
-
-        model = model_HRV(self.meanRGB, self.fs, interpolate=True, time_data=self.timeInfo, interp_freq=120)
-        result_dict = model.HRV_measure()
-        # print("result_dict", result_dict)
-
-        # print(f'heart rate variability: {result_dict["HRV_SDNN"]} ms')
-        # print(f'heart rate: {result_dict["HR"]} bpm')
-
-        if np.isnan(result_dict["HRV_SDNN"]):
-            print(f'heart rate variability: {70.0 + random.randint(-5, 5)} ms')
-            print(f'heart rate: {self.hr[-1]} bpm')
-            return {"hr": self.hr[-1], "hrv": 70.0 + random.randint(-5, 5)}
-        else:
-            print(f'heart rate variability: {result_dict["HRV_SDNN"]} ms')
-            print(f'heart rate: {result_dict["HR"]} bpm')
-            return  {"hrv": result_dict['HRV_SDNN'], "hr": result_dict['HR']}
-        # # return {"meanRGB": self.meanRGB} // return {"HeartRate" : self.hr}
-
-    def frame(
-            self, sid: Hashable, frame: np.ndarray, timestamp: int, *args, **kwargs
-    ) -> Optional[dict]:
-        frame_return_dict = {"sid": sid}
-
-        print(
-            f"{self.name} start processing sid({sid})'s frame@{datetime.fromtimestamp(timestamp / 1000)}"
-        )
-        print(
-            f"{self.name}-FA start processing sid({sid})'s frame@{datetime.fromtimestamp(timestamp / 1000)}"
-        )
-        # print("frame", frame)
-        self.meanRGB = self.FA.DetectSkin(frame, self.fs)
-        # print("len(self.meanRGB)", len(self.meanRGB))
-        # print("type(self.meanRGB)", type(self.meanRGB))
-        # up to now, face analysis have finished
-
-        if len(self.meanRGB) > 10 * self.fs and len(self.meanRGB) % self.fs == 0:
-            # fs = 30
-            print(
-                f"{self.name}-HR start processing sid({sid})'s frame@{datetime.fromtimestamp(timestamp / 1000)}"
-            )
-            hr, _ = model_HR(self.meanRGB, self.fs).evaluate_HR()
-            hr = np.round(hr, 1)
-            self.hr.append(hr)
-            print(f'heart rate: {hr} bpm')
-            frame_return_dict["hr"] = hr
-        # up to now, heartrate have finished and the heart rate of this frame is 'hr'
-
-        if self.count >= 2 * self.fs:
-            print(
-                f"{self.name}-HRV start processing sid({sid})'s frame@{datetime.fromtimestamp(timestamp / 1000)}"
-            )
-            self.frameID.append(self.count)
-            self.timeInfo.append(timestamp / 1000)
-
-            # frame_return_dict["NumFrames"] = self.frameID
-            # frame_return_dict["timestamps"] = self.timeInfo
-
-
-        self.count += 1
-        # up to now, hrv have finished but there does not exist the value of hrv until end
-
-        # return {"sid": sid, "meanRGB": self.meanRGB}  //  return {"sid": sid, "HeartRate" : self.hr}
-        # return {"sid": sid, "hr": self.hr, "NumFrames": self.frameID, "timestamps": self.timeInfo}
-        # return {"sid": sid, "hr": hr, "NumFrames": self.frameID, "timestamps": self.timeInfo}
-        # since I try to use result_dict['HR'] first, here do not return hr for frame
-        return frame_return_dict
-
-
-
-class FaceAnalysisModel(BaseModel):
-    name = 'FaceAnalysisModel'
-    
-    def __init__(self):
-        super().__init__()
-        self.FA = model_FaceAnalysis()
-        self.meanRGB = []
-        
     def start(self, sid: Hashable, timestamp: int, *args, **kwargs) -> None:
         print(
             f"{self.name} started at {datetime.fromtimestamp(timestamp/1000)} with sid {sid}"
         )
-        
-    
+        self.frame_buffer.clear()
+        self.frame_count = 0
+        self.rating = -1
+
     def end(self, sid: Hashable, timestamp: Optional[int], *args, **kwargs) -> dict:
         print(
             f"{self.name} ended at {datetime.fromtimestamp(timestamp/1000) if timestamp else 'unknown time'} with sid {sid}"
         )
-        
-        return {"meanRGB" : self.meanRGB}
-        
-        
+        print("Fatigue rate: ", self.rating)
+
+        # # Free up memory
+        # del self.model
+        # del self.tokenizer
+        # del self.generation_config
+        # self.frame_buffer.clear()
+
+        return {"status": "completed"}
+
     def frame(
         self, sid: Hashable, frame: np.ndarray, timestamp: int, *args, **kwargs
     ) -> Optional[dict]:
-        
+        # self.frame_count += 1
 
-        fs = kwargs.get('fs')
-        print(
-            f"{self.name} start processing sid({sid})'s frame@{datetime.fromtimestamp(timestamp/1000)}"
-        )
-        
-        self.meanRGB = self.FA.DetectSkin(frame, fs)
-        
-        return {"sid": sid, "meanRGB" : self.meanRGB}
-        
+        if self.frame_count % self.skip_frames == 0:
+            self.frame_buffer.append(frame)
 
-class HeartRateModel(BaseModel):
-    name = 'HeartRateModel'
-    
-    def __init__(self):
-        super().__init__()
-        self.hr = []
-        
-        
-    def start(self, sid: Hashable, timestamp: int, *args, **kwargs) -> None:
-        print(
-            f"{self.name} started at {datetime.fromtimestamp(timestamp/1000)} with sid {sid}"
-        )
-        
-    
-    def end(self, sid: Hashable, timestamp: Optional[int], *args, **kwargs) -> dict:
-        print(
-            f"{self.name} ended at {datetime.fromtimestamp(timestamp/1000) if timestamp else 'unknown time'} with sid {sid}"
-        )
-        
-        return {"HeartRate" : self.hr}
-        
-        
-    def frame(
-        self, sid: Hashable, frame: np.ndarray, timestamp: int, *args, **kwargs
-    ) -> Optional[dict]:
-        
-        #sleep_time = 2
-        #time.sleep(sleep_time)
+        self.frame_count += 1
 
-        fs = kwargs.get('fs')
-        meanRGB = kwargs.get('meanRGB')
-        
-        if len(meanRGB) > 10 * fs and len(meanRGB) % fs == 0:
-            
-            print(
-                f"{self.name} start processing sid({sid})'s frame@{datetime.fromtimestamp(timestamp/1000)}"
+        # if len(self.frame_buffer) < 16:
+        #     return None
+
+        print(
+            f"{self.name} start processing sid({sid})'s frames@{timestamp} at {datetime.now()}"
+        )
+
+        start_time = time.time()
+
+        # Process the frames
+        pixel_values, num_patches_list = utils.process_sample(list(self.frame_buffer))
+
+        pixel_values = pixel_values.to(GPU, dtype=torch.bfloat16)
+
+        video_prefix = "".join(
+            [f"Frame{i*10+1}: <image>\n" for i in range(len(num_patches_list))]
+        )
+        question = "Rate the fatigue level of the person in this video segment on a scale from 1 to 5, where 1 is completely fresh and 5 is extremely exhausted. Answer with only a number."
+        full_question = video_prefix + question
+
+        with torch.no_grad():
+            response, processed_scores = utils.chat(
+                self.model,
+                self.tokenizer,
+                pixel_values,
+                full_question,
+                self.generation_config,
+                num_patches_list=num_patches_list,
+                history=None,
+                return_history=False,
             )
-            
-            self.model = model_HR(meanRGB, fs)
-            hr, _ = self.model.evaluate_HR()
-            self.hr.append(np.round(hr, 1))
-            print(f'heart rate: {np.round(hr, 1)} bpm')
-                
-        return {"sid": sid, "HeartRate" : self.hr}
 
-        
-class HRVModel(BaseModel):
-    name = 'HRVModel'
-    
-    def __init__(self):
-        super().__init__()
-        self.timeInfo = []
-        self.frameID  = []
-        self.count = 0
-        
-        
-    def start(self, sid: Hashable, timestamp: int, *args, **kwargs) -> None:
+        # with torch.no_grad():
+        #     response, processed_scores = utils.chat(self.model, self.tokenizer, pixel_values, question,
+        #                                             self.generation_config, num_patches_list=num_patches_list)
+
+        rating = float(response.strip())
+        self.rating = rating
+
+        confidence = utils.get_highest_prob(processed_scores)
+
+        # print("------", rating, confidence, "--------")
+
+        process_time = time.time() - start_time
+
         print(
-            f"{self.name} started at {datetime.fromtimestamp(timestamp/1000)} with sid {sid}"
-        )
-        
-    
-    def end(self, sid: Hashable, timestamp: Optional[int], *args, **kwargs) -> dict:
-        print(
-            f"{self.name} ended at {datetime.fromtimestamp(timestamp/1000) if timestamp else 'unknown time'} with sid {sid}"
+            f"{self.name} finish processing sid({sid})'s frames@{timestamp} at {datetime.now()}"
         )
 
-        fs = kwargs.get('fs')
-        meanRGB = kwargs.get('meanRGB')
-        model = model_HRV(meanRGB, fs, interpolate=True, time_data=self.timeInfo, interp_freq=120)
-        result_dict = model.HRV_measure()
+        # return {
+        #     "sid": sid,
+        #     "fatigue_rating": rating,
+        #     "confidence": confidence,
+        #     "fatigue_resp_ts": time.time(),
+        #     "fatigue_process_time": process_time,
+        # }
+        return {
+            "sid": sid,
+            "fatigue": rating,
+            "confidence": confidence,
+            "fatigue_resp_ts": time.time(),
+            "fatigue_process_time": process_time,
+        }
 
-        print(f'heart rate variability: {result_dict["HRV_SDNN"]} ms')
-        print(f'heart rate: {result_dict["HR"]} bpm')
-
-        return {"HRV_SDNN": result_dict['HRV_SDNN'],
-                "HeartRate": result_dict['HR']}
-        
-        
-    def frame(
-        self, sid: Hashable, frame: np.ndarray, timestamp: int, *args, **kwargs
-    ) -> Optional[dict]:
-        
-        
-        fs = kwargs.get('fs')
-        if self.count >= 2 * fs:
-            
-            print(
-                f"{self.name} start processing sid({sid})'s frame@{datetime.fromtimestamp(timestamp/1000)}"
-            )
-            
-            self.frameID.append(self.count)
-            self.timeInfo.append(timestamp/1000)
-            
-        self.count += 1
-                
-        return {"sid": sid, "NumFrames": self.frameID, "timestamps": self.timeInfo}
