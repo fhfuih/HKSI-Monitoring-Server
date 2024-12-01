@@ -5,22 +5,33 @@ from typing import Hashable, Optional
 from models.base_model import *
 from .eye_bag_detection import EyeBagDetection
 
+import numpy as np
+
 class EyeBagModel(BaseModel):
     name = "EyeBagDetection"
 
-    ckpt_path = "shape_predictor_81_face_landmarks.dat"
-    eye_bag_detector = EyeBagDetection(ckpt_path)
+    def __init__(self):
+        super().__init__()
 
-    left_eye_has_bag = False
-    right_eye_has_bag = False
+        # ckpt_path = "shape_predictor_81_face_landmarks.dat"
+        # eye_bag_detector = EyeBagDetection(ckpt_path)
+        self.eye_bag_detector = EyeBagDetection("shape_predictor_81_face_landmarks.dat")
 
-    left_eye_bag_region = None
-    right_eye_bag_region = None
+        self.left_eye_has_bag = False
+        self.right_eye_has_bag = False
+
+        self.left_eye_bag_region = None
+        self.right_eye_bag_region = None
 
     def start(self, sid: Hashable, timestamp: int, *args, **kwargs) -> None:
         print(
             f"{self.name} started at {datetime.fromtimestamp(timestamp/1000)} with sid {sid}"
         )
+        self.left_eye_has_bag = False
+        self.right_eye_has_bag = False
+
+        self.left_eye_bag_region = None
+        self.right_eye_bag_region = None
 
     def end(self, sid: Hashable, timestamp: Optional[int], *args, **kwargs) -> dict:
         print(
