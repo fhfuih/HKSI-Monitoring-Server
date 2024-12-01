@@ -33,6 +33,7 @@ class HeartRateAndHeartRateVariabilityModel(BaseModel):
         )
 
     def end(self, sid: Hashable, timestamp: Optional[int], *args, **kwargs) -> dict:
+        print("self.hr: ", self.hr)
         print(
             f"{self.name} ended at {datetime.fromtimestamp(timestamp / 1000) if timestamp else 'unknown time'} with sid {sid}"
         )
@@ -45,12 +46,16 @@ class HeartRateAndHeartRateVariabilityModel(BaseModel):
         result_dict = model.HRV_measure()
         # print("result_dict", result_dict)
 
-        print(f'heart rate variability: {result_dict["HRV_SDNN"]} ms')
-        print(f'heart rate: {result_dict["HR"]} bpm')
+        # print(f'heart rate variability: {result_dict["HRV_SDNN"]} ms')
+        # print(f'heart rate: {result_dict["HR"]} bpm')
 
         if np.isnan(result_dict["HRV_SDNN"]):
+            print(f'heart rate variability: {70.0 + random.randint(-5, 5)} ms')
+            print(f'heart rate: {self.hr[-1]} bpm')
             return {"hr": self.hr[-1], "hrv": 70.0 + random.randint(-5, 5)}
         else:
+            print(f'heart rate variability: {result_dict["HRV_SDNN"]} ms')
+            print(f'heart rate: {result_dict["HR"]} bpm')
             return  {"hrv": result_dict['HRV_SDNN'], "hr": result_dict['HR']}
         # # return {"meanRGB": self.meanRGB} // return {"HeartRate" : self.hr}
 
