@@ -23,6 +23,7 @@ class FatigueModel(BaseModel):
         self.frame_buffer = deque(maxlen=24)
         self.frame_count = 0
         self.skip_frames = 10
+        self.rating = -1
 
     def start(self, sid: Hashable, timestamp: int, *args, **kwargs) -> None:
         print(
@@ -30,17 +31,19 @@ class FatigueModel(BaseModel):
         )
         self.frame_buffer.clear()
         self.frame_count = 0
+        self.rating = -1
 
     def end(self, sid: Hashable, timestamp: Optional[int], *args, **kwargs) -> dict:
         print(
             f"{self.name} ended at {datetime.fromtimestamp(timestamp/1000) if timestamp else 'unknown time'} with sid {sid}"
         )
+        print("Fatigue rate: ", self.rating)
 
-        # Free up memory
-        del self.model
-        del self.tokenizer
-        del self.generation_config
-        self.frame_buffer.clear()
+        # # Free up memory
+        # del self.model
+        # del self.tokenizer
+        # del self.generation_config
+        # self.frame_buffer.clear()
 
         return {"status": "completed"}
 
@@ -91,6 +94,8 @@ class FatigueModel(BaseModel):
         #                                             self.generation_config, num_patches_list=num_patches_list)
 
         rating = float(response.strip())
+        self.rating = rating
+
         confidence = utils.get_highest_prob(processed_scores)
 
         # print("------", rating, confidence, "--------")
