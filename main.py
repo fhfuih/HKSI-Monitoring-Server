@@ -33,14 +33,15 @@ from broker import Broker
 from models.base_model import BaseModel
 from models.eye_bag_model import EyeBagModel
 from models.fatigue_model import FatigueModel
+from models.Physiological import HeartRateAndHeartRateVariabilityModel
 from models.mock_model_1 import MockModel1
 from models.mock_model_2 import MockModel2
 from models.pimple_model import PimpleModel
 
 ROOT = os.path.dirname(__file__)
-# MODELS: list[type[BaseModel]] = [FatigueModel, EyeBagModel, PimpleModel]
+MODELS: list[type[BaseModel]] = [FatigueModel, EyeBagModel, PimpleModel, HeartRateAndHeartRateVariabilityModel]
 # MODELS: list[type[BaseModel]] = [FatigueModel]
-MODELS = [MockModel1, MockModel2]
+# MODELS = [MockModel1, MockModel2]
 
 # Logs
 logger = logging.getLogger("HKSI WebRTC")
@@ -58,6 +59,8 @@ logger.addHandler(file_handler)
 pcs = set()  # keep track of peer connections for cleanup
 
 broker = Broker(MODELS, None, None)
+
+# record_path = None
 
 
 class VideoTransformTrack(VideoStreamTrack):
@@ -236,6 +239,7 @@ async def on_shutdown(app):
 
 
 async def main():
+    global record_path
     parser = argparse.ArgumentParser(
         description="HKSI WebRTC server",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
