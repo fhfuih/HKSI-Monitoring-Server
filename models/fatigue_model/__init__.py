@@ -101,9 +101,16 @@ class FatigueModel(BaseModel):
             f"{self.name} finish processing sid({sid})'s frames@{timestamp} at {datetime.now()}"
         )
 
+        # return {
+        #     "sid": sid,
+        #     "fatigue_rating": rating,
+        #     "confidence": confidence,
+        #     "fatigue_resp_ts": time.time(),
+        #     "fatigue_process_time": process_time,
+        # }
         return {
             "sid": sid,
-            "fatigue_rating": rating,
+            "fatigue": rating,
             "confidence": confidence,
             "fatigue_resp_ts": time.time(),
             "fatigue_process_time": process_time,
