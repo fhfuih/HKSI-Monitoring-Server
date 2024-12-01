@@ -5,6 +5,8 @@ from typing import Hashable, Optional
 from models.base_model import *
 from .pimple_detection import PimpleDetection
 
+import numpy as np
+
 class PimpleModel(BaseModel):
     name = "PimpleDetection"
 
@@ -45,6 +47,7 @@ class PimpleModel(BaseModel):
 
         sleep_time = 1  # random.uniform(0.5, 2)
         time.sleep(sleep_time)
+
         # Demonstrate the usage of helper functions/classes in another file.
         pimple_num, pimple_bboxes = self.pimple_detector.run(frame)
         
@@ -56,8 +59,8 @@ class PimpleModel(BaseModel):
         )
         
         return {
-            "pimple_num": pimple_num,
-            "pimple_bboxes": pimple_bboxes,
+            "pimple_num": self.pimple_num,
+            "pimple_bboxes": self.pimple_bboxes,
             "sid": sid,
             "pimple_resp_ts": time.time(),
             "pimple_process_time": sleep_time,
