@@ -8,16 +8,21 @@ from .pimple_detection import PimpleDetection
 class PimpleModel(BaseModel):
     name = "PimpleDetection"
 
-    ckpt_path = "shape_predictor_81_face_landmarks.dat"
-    pimple_detector = PimpleDetection(ckpt_path)
+    def __init__(self):
+        super().__init__()
+        # ckpt_path = "shape_predictor_81_face_landmarks.dat"
+        # pimple_detector = PimpleDetection(ckpt_path)
+        self.pimple_detector = PimpleDetection("shape_predictor_81_face_landmarks.dat")
 
-    pimple_num = 0
-    pimple_bboxes = []
+        self.pimple_num = 0
+        self.pimple_bboxes = []
 
     def start(self, sid: Hashable, timestamp: int, *args, **kwargs) -> None:
         print(
             f"{self.name} started at {datetime.fromtimestamp(timestamp/1000)} with sid {sid}"
         )
+        self.pimple_num = 0
+        self.pimple_bboxes = []
 
     def end(self, sid: Hashable, timestamp: Optional[int], *args, **kwargs) -> dict:
         print(
