@@ -263,7 +263,7 @@ async def setupHttpServer() -> web.Application:
 if __name__ == "__main__":
     load_dotenv()
 
-    host = os.environ.get("HOST")
+    host = "127.0.0.1" if os.environ.get("ONLY_LOCALHOST") == "true" else "0.0.0.0"
     port = os.environ.get("PORT")
     if port is not None:
         port = int(port)

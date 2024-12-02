@@ -131,8 +131,6 @@ if __name__ == "__main__":
     load_dotenv()
 
     host = os.environ.get("HOST", "localhost")
-    if host == "0.0.0.0":
-        host = "localhost"
     port = os.environ.get("PORT")
 
     ssl_cert_file = (s := os.environ.get("SSL_CERT_FILE")) and s.strip()
@@ -153,6 +151,7 @@ if __name__ == "__main__":
         ssl_context = True
 
     url = f"{protocol}://{host}:{port}/offer"
+    print("Connecting to", url)
 
     parser = argparse.ArgumentParser(description="Video stream from the command line")
     parser.add_argument("--role", choices=["offer"], default="offer")
