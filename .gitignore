@@ -2,6 +2,8 @@
 # Edit at https://www.toptal.com/developers/gitignore?templates=python
 
 .DS_Store
+.env
+.env.*
 /recordings
 # /ssl/*.crt
 # /ssl/*.key
