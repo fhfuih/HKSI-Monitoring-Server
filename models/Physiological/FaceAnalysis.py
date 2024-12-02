@@ -6,6 +6,7 @@
 import cv2
 import dlib
 import numpy as np
+import numpy.typing as npt
 
 from .HKSI_SkinDetect import SkinDetect
 
@@ -17,7 +18,7 @@ class model_FaceAnalysis:
         self.count = 0
         self.meanRGB = []
 
-    def DetectSkin(self, frame, fs):
+    def DetectSkin(self, frame, fs) -> npt.NDArray:
         if self.count >= fs * 2:  # throw away first 2 seconds
             frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             faces_detector = self.detector(frame_gray)
@@ -40,7 +41,7 @@ class model_FaceAnalysis:
 
         self.count += 1
 
-        return self.meanRGB
+        return np.array(self.meanRGB).reshape(-1, 3)
 
     def rgb_mean(self, skinFace):
         """This function calculates mean of the each channel for the

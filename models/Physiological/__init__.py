@@ -1,3 +1,4 @@
+import logging
 import random
 import time
 from datetime import datetime
@@ -13,6 +14,8 @@ from .FaceAnalysis import model_FaceAnalysis
 from .HeartRate import model_HR
 from .HeartRateVariability import model_HRV
 
+logger = logging.getLogger("HKSI WebRTC")
+
 
 class HeartRateAndHeartRateVariabilityModel(BaseModel):
     name = "HeartRateAndHeartRateVariabilityModel "
@@ -22,35 +25,23 @@ class HeartRateAndHeartRateVariabilityModel(BaseModel):
         self.fs = 30
 
         self.FA = model_FaceAnalysis()
-        self.meanRGB = []
-
-        self.hr = []
-
-        self.timeInfo = []
-        self.frameID = []
-        self.count = 0
+        self.__reset_state()
 
     def start(self, sid: Hashable, timestamp: int, *args, **kwargs) -> None:
-        print(
+        logger.debug(
             f"{self.name} started at {datetime.fromtimestamp(timestamp / 1000)} with sid {sid}"
         )
 
-        self.meanRGB = []
-
-        self.hr = []
-
-        self.timeInfo = []
-        self.frameID = []
-        self.count = 0
+        self.__reset_state()
 
     def end(self, sid: Hashable, timestamp: Optional[int], *args, **kwargs) -> dict:
-        print("self.hr: ", self.hr)
-        print(
+        logger.debug("self.hr: ", self.hr)
+        logger.debug(
             f"{self.name} ended at {datetime.fromtimestamp(timestamp / 1000) if timestamp else 'unknown time'} with sid {sid}"
         )
 
-        # print("len(self.meanRGB)", len(self.meanRGB))
-        # print("self.timeInfo", self.timeInfo)
+        # logger.debug("len(self.meanRGB)", len(self.meanRGB))
+        # logger.debug("self.timeInfo", self.timeInfo)
 
         model = model_HRV(
             self.meanRGB,
@@ -60,21 +51,16 @@ class HeartRateAndHeartRateVariabilityModel(BaseModel):
             interp_freq=120,
         )
         result_dict = model.HRV_measure()
-        # print("result_dict", result_dict)
-
-        # print(f'heart rate variability: {result_dict["HRV_SDNN"]} ms')
-        # print(f'heart rate: {result_dict["HR"]} bpm')
+        # logger.debug("result_dict", result_dict)
 
         if np.isnan(result_dict["HRV_SDNN"]):
             this_hrv = 70.0 + random.randint(-5, 5)
             this_hr = self.hr[-1] if self.hr else None
-            print(f"heart rate variability: {this_hrv} ms")
-            print(f"heart rate: {this_hr} bpm")
-            return {"hr": this_hr, "hrv": this_hrv}
         else:
-            print(f'heart rate variability: {result_dict["HRV_SDNN"]} ms')
-            print(f'heart rate: {result_dict["HR"]} bpm')
-            return {"hrv": result_dict["HRV_SDNN"], "hr": result_dict["HR"]}
+            this_hrv = result_dict["HRV_SDNN"]
+            this_hr = result_dict["HR"]
+        logger.debug(f"HRV: {this_hrv} ms. HR: {this_hr} bpm")
+        return {"hr": this_hr, "hrv": this_hrv}
         # # return {"meanRGB": self.meanRGB} // return {"HeartRate" : self.hr}
 
     def frame(
@@ -82,33 +68,29 @@ class HeartRateAndHeartRateVariabilityModel(BaseModel):
     ) -> Optional[dict]:
         frame_return_dict = {"sid": sid}
 
-        print(
+        logger.debug(
             f"{self.name} start processing sid({sid})'s frame@{datetime.fromtimestamp(timestamp / 1000)}"
         )
-        print(
-            f"{self.name}-FA start processing sid({sid})'s frame@{datetime.fromtimestamp(timestamp / 1000)}"
-        )
-        # print("frame", frame)
         self.meanRGB = self.FA.DetectSkin(frame, self.fs)
-        # print("len(self.meanRGB)", len(self.meanRGB))
-        # print("type(self.meanRGB)", type(self.meanRGB))
+        logger.debug(
+            f"{self.name}-FA sid({sid}) frame@{datetime.fromtimestamp(timestamp / 1000)} len(self.meanRGB): {len(self.meanRGB)}"
+        )
         # up to now, face analysis have finished
 
         if len(self.meanRGB) > 10 * self.fs and len(self.meanRGB) % self.fs == 0:
             # fs = 30
-            print(
-                f"{self.name}-HR start processing sid({sid})'s frame@{datetime.fromtimestamp(timestamp / 1000)}"
-            )
             hr, _ = model_HR(self.meanRGB, self.fs).evaluate_HR()
             hr = np.round(hr, 1)
             self.hr.append(hr)
-            print(f"heart rate: {hr} bpm")
+            logger.debug(
+                f"{self.name}-HR sid({sid}) frame@{datetime.fromtimestamp(timestamp / 1000)} HR: {hr} bpm"
+            )
             frame_return_dict["hr"] = hr
         # up to now, heartrate have finished and the heart rate of this frame is 'hr'
 
         if self.count >= 2 * self.fs:
-            print(
-                f"{self.name}-HRV start processing sid({sid})'s frame@{datetime.fromtimestamp(timestamp / 1000)}"
+            logger.debug(
+                f"{self.name}-HRV sid({sid}) frame@{datetime.fromtimestamp(timestamp / 1000)} start processing"
             )
             self.frameID.append(self.count)
             self.timeInfo.append(timestamp / 1000)
@@ -125,8 +107,17 @@ class HeartRateAndHeartRateVariabilityModel(BaseModel):
         # since I try to use result_dict['HR'] first, here do not return hr for frame
         return frame_return_dict
 
+    def __reset_state(self):
+        self.meanRGB = np.array([]).reshape(-1, 3)
 
-class FaceAnalysisModel(BaseModel):
+        self.hr = []
+
+        self.timeInfo = []
+        self.frameID = []
+        self.count = 0
+
+
+class __FaceAnalysisModel(BaseModel):
     name = "FaceAnalysisModel"
 
     def __init__(self):
@@ -159,7 +150,7 @@ class FaceAnalysisModel(BaseModel):
         return {"sid": sid, "meanRGB": self.meanRGB}
 
 
-class HeartRateModel(BaseModel):
+class __HeartRateModel(BaseModel):
     name = "HeartRateModel"
 
     def __init__(self):
@@ -200,7 +191,7 @@ class HeartRateModel(BaseModel):
         return {"sid": sid, "HeartRate": self.hr}
 
 
-class HRVModel(BaseModel):
+class __HRVModel(BaseModel):
     name = "HRVModel"
 
     def __init__(self):
