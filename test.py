@@ -2,7 +2,9 @@ import argparse
 import asyncio
 import json
 import logging
+import os
 from enum import Enum
+import ssl
 from typing import Optional, Union
 
 import aiohttp
@@ -13,6 +15,7 @@ from aiortc import (
 )
 from aiortc.contrib.media import MediaBlackhole, MediaPlayer, MediaRecorder
 from av.video.frame import VideoFrame
+from dotenv import load_dotenv
 
 Role = Enum("Role", ["offer", "answer"])
 
@@ -85,7 +88,9 @@ async def run(
         offer_sdp = pc.localDescription.sdp
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                "http://localhost:8080/offer", json={"sdp": offer_sdp, "type": "offer"}
+                url,
+                json={"sdp": offer_sdp, "type": "offer"},
+                ssl=ssl_context,
             ) as response:
                 if response.status != 200:
                     print("Failed to send offer")
@@ -123,8 +128,34 @@ async def run(
 
 
 if __name__ == "__main__":
+    load_dotenv()
+
+    host = os.environ.get("HOST", "localhost")
+    if host == "0.0.0.0":
+        host = "localhost"
+    port = os.environ.get("PORT")
+
+    ssl_cert_file = (s := os.environ.get("SSL_CERT_FILE")) and s.strip()
+    ssl_key_file = (s := os.environ.get("SSL_KEY_FILE")) and s.strip()
+    protocol = "https" if ssl_cert_file and ssl_key_file else "http"
+
+    is_self_signed = ssl_key_file == "./ssl/key.pem"
+    print(
+        "Using protocol:",
+        protocol,
+        "with SSL",
+        "off (due to self-signed certificate)" if is_self_signed else "on",
+    )
+    if is_self_signed:
+        ssl_context = ssl.create_default_context()
+        ssl_context.load_cert_chain(str(ssl_cert_file), str(ssl_key_file))
+    else:
+        ssl_context = True
+
+    url = f"{protocol}://{host}:{port}/offer"
+
     parser = argparse.ArgumentParser(description="Video stream from the command line")
-    parser.add_argument("--role", choices=["offer", "answer"], default="offer")
+    parser.add_argument("--role", choices=["offer"], default="offer")
     parser.add_argument(
         "--play-from",
         default="sample-video.mp4",

@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import ssl
+import sys
 import uuid
 import warnings
 from pathlib import Path
@@ -28,20 +29,21 @@ from aiortc.contrib.media import (
 from aiortc.rtcrtpreceiver import RemoteStreamTrack
 from av import logging as av_logging
 from av.video.frame import VideoFrame
+from dotenv import load_dotenv
 
 from broker import Broker
 from models.base_model import BaseModel
 from models.eye_bag_model import EyeBagModel
 from models.fatigue_model import FatigueModel
-from models.Physiological import HeartRateAndHeartRateVariabilityModel
 from models.mock_model_1 import MockModel1
 from models.mock_model_2 import MockModel2
+from models.Physiological import HeartRateAndHeartRateVariabilityModel
 from models.pimple_model import PimpleModel
 
 ROOT = os.path.dirname(__file__)
 # MODELS: list[type[BaseModel]] = [FatigueModel, EyeBagModel, PimpleModel, HeartRateAndHeartRateVariabilityModel]
-MODELS: list[type[BaseModel]] = [FatigueModel, EyeBagModel, PimpleModel]
-# MODELS = [MockModel1, MockModel2]
+# MODELS: list[type[BaseModel]] = [FatigueModel, EyeBagModel, PimpleModel]
+MODELS = [MockModel1, MockModel2]
 # MODELS: list[type[BaseModel]] = [HeartRateAndHeartRateVariabilityModel]
 
 
@@ -58,11 +60,13 @@ file_handler = logging.FileHandler("webrtc.log")
 file_handler.setLevel(logging.WARNING)
 logger.addHandler(file_handler)
 
+# WebRTC service
 pcs = set()  # keep track of peer connections for cleanup
 
 broker = Broker(MODELS, None, None)
 
-# record_path = None
+# Command line arguments
+record_path = None
 
 
 class VideoTransformTrack(VideoStreamTrack):
@@ -230,6 +234,7 @@ async def offer(request: web.Request) -> web.Response:
 
 
 async def hello(request: web.Request) -> web.Response:
+    logger.debug(f"Hello World from {request.remote}")
     return web.Response(text="Hello, world")
 
 
@@ -240,25 +245,43 @@ async def on_shutdown(app):
     pcs.clear()
 
 
-async def main():
-    global record_path
+async def setupHttpServer() -> web.Application:
+    catcher = Catcher()
+    await catcher.add_scenarios(*AIOHTTP_SCENARIOS)
+    app = web.Application(middlewares=[catcher.middleware])
+    app.on_shutdown.append(on_shutdown)
+    app.router.add_post("/offer", offer)
+    app.router.add_get("/", hello)
+    return app
+
+
+if __name__ == "__main__":
+    load_dotenv()
+
+    host = os.environ.get("HOST")
+    port = os.environ.get("PORT")
+    if port is not None:
+        port = int(port)
+
+    ssl_cert_file = os.environ.get("SSL_CERT_FILE")
+    ssl_key_file = os.environ.get("SSL_KEY_FILE")
+    ssl_cert_file = ssl_cert_file and ssl_cert_file.strip()
+    ssl_key_file = ssl_key_file and ssl_key_file.strip()
+    if ssl_cert_file and ssl_key_file:  # not None or empty string
+        logger.info(f"SSL enabled.")
+        ssl_context = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS_SERVER)
+        ssl_context.load_cert_chain(ssl_cert_file, ssl_key_file)
+    else:
+        logger.info(
+            f"SSL disabled because %s is empty.",
+            "SSL_CERT_FILE" if not ssl_cert_file else "SSL_KEY_FILE",
+        )
+        ssl_context = None
+
     parser = argparse.ArgumentParser(
         description="HKSI WebRTC server",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("--ssl", type=bool, default=False, help="Use SSL")
-    parser.add_argument(
-        "--cert-file",
-        default=os.path.join(ROOT, "ssl", "cert.pem"),
-        help="SSL certificate file (for HTTPS). Default is ./ssl/cert.pem",
-    )
-    parser.add_argument(
-        "--key-file",
-        default=os.path.join(ROOT, "ssl", "key.pem"),
-        help="SSL key file (for HTTPS). Default is ./ssl/key.pem",
-    )
-    parser.add_argument("--host", default="0.0.0.0", help="Host for HTTP server")
-    parser.add_argument("--port", type=int, default=8080, help="Port for HTTP server")
     parser.add_argument(
         "--record-to",
         default="./recordings",
@@ -269,12 +292,12 @@ async def main():
 
     if record_to := args.record_to.strip():
         record_path = Path(record_to).resolve()
-        if record_path.suffix or record_path.is_file():
-            warnings.warn(
-                "Declaring a video file name in --record-to is deprecated. Now it declares a folder, and the program uniquely names each incoming videos inside this folder.",
-                DeprecationWarning,
+        if record_path.is_file():
+            print(
+                "The record-to path is a file. It should be a folder instead.",
+                file=sys.stderr,
             )
-            record_path = record_path.parent
+            sys.exit(1)
         record_path.mkdir(parents=True, exist_ok=True)
         logger.info(f"Saving video recordings to {record_path}")
     else:
@@ -285,29 +308,13 @@ async def main():
         console_handler.setLevel(logging.DEBUG)
     av_logging.set_level(av_logging.ERROR)  # Internal logging of the av package
 
-    if args.ssl:
-        ssl_context = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS_SERVER)
-        ssl_context.load_cert_chain(args.cert_file, args.key_file)
-    else:
-        ssl_context = None
-
-    catcher = Catcher()
-    await catcher.add_scenarios(*AIOHTTP_SCENARIOS)
-    app = web.Application(middlewares=[catcher.middleware])
-    app.on_shutdown.append(on_shutdown)
-    app.router.add_post("/offer", offer)
-    app.router.add_get("/", hello)
-    return app, args, ssl_context
-
-
-if __name__ == "__main__":
     loop = asyncio.get_event_loop()
-    app, args, ssl_context = loop.run_until_complete(main())
+    app = loop.run_until_complete(setupHttpServer())
     web.run_app(
         app,
         access_log=None,
-        host=args.host,
-        port=args.port,
+        host=host,
+        port=port,
         ssl_context=ssl_context,
         loop=loop,
     )

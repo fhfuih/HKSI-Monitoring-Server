@@ -29,6 +29,7 @@ pandas = "^2.2.3"
 pyampd = "^0.0.1"
 msvc-runtime = { version = "^14.40.33807", platform = "win32" }
 mediapipe = "0.10.7"
+python-dotenv = "^1.0.1"
 
 [tool.ruff.lint]
 select = ["D", "I"]
