@@ -2,8 +2,13 @@
 @author: I.O.
 """
 
-from collections import Sequence
+# from collections import Sequence
 from typing import Optional, cast
+try:
+    from collections.abc import Sequence
+except ImportError:
+    from collections import Sequence
+
 
 import numpy as np
 import numpy.typing as npt
