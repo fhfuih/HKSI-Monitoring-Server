@@ -58,13 +58,15 @@ class HeartRateAndHeartRateVariabilityModel(BaseModel):
         # print(f'heart rate: {result_dict["HR"]} bpm')
 
         if np.isnan(result_dict["HRV_SDNN"]):
-            print(f'heart rate variability: {70.0 + random.randint(-5, 5)} ms')
-            print(f'heart rate: {self.hr[-1]} bpm')
-            return {"hr": self.hr[-1], "hrv": 70.0 + random.randint(-5, 5)}
+            this_hrv = 70.0 + random.randint(-5, 5)
+            this_hr = self.hr[-1] if self.hr else None
+            print(f"heart rate variability: {this_hrv} ms")
+            print(f"heart rate: {this_hr} bpm")
+            return {"hr": this_hr, "hrv": this_hrv}
         else:
             print(f'heart rate variability: {result_dict["HRV_SDNN"]} ms')
             print(f'heart rate: {result_dict["HR"]} bpm')
-            return  {"hrv": result_dict['HRV_SDNN'], "hr": result_dict['HR']}
+            return {"hrv": result_dict["HRV_SDNN"], "hr": result_dict["HR"]}
         # # return {"meanRGB": self.meanRGB} // return {"HeartRate" : self.hr}
 
     def frame(
