@@ -25,8 +25,7 @@ class MockModel2(BaseModel):
         print(
             f"222 {self.name} ended at {datetime.fromtimestamp(timestamp/1000) if timestamp else 'unknown time'} with sid {sid}"
         )
-        a = lib.get_result()
-        a["fatigue"] = 0.213
+        a = lib.get_result(timestamp)
         return a
 
     def frame(
@@ -39,14 +38,9 @@ class MockModel2(BaseModel):
         sleep_time = 1  # random.uniform(0.5, 2)
         time.sleep(sleep_time)
         # Demonstrate the usage of helper functions/classes in another file.
-        a = lib.get_result()
+        a = lib.get_result(timestamp)
 
         print(
             f"222 {self.name} finish processing sid({sid})'s frame@{datetime.fromtimestamp(timestamp/1000)}"
         )
-        return {
-            **a,
-            "sid": sid,
-            "fatigue_resp_ts": time.time(),
-            "fatigue_process_time": sleep_time,
-        }
+        return a

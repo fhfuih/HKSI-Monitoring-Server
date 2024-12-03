@@ -73,7 +73,7 @@ logger.addHandler(file_handler)
 # WebRTC service
 pcs = set()  # keep track of peer connections for cleanup
 
-broker = Broker(MODELS, None, None)
+broker = Broker(MODELS)
 
 # Command line arguments
 record_path = None

@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Hashable, Optional
+
 import numpy as np
 
 
