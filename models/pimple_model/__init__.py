@@ -2,10 +2,12 @@ import time
 from datetime import datetime
 from typing import Hashable, Optional
 
-from models.base_model import *
+import numpy as np
+
+from models.base_model import BaseModel
+
 from .pimple_detection import PimpleDetection
 
-import numpy as np
 
 class PimpleModel(BaseModel):
     name = "PimpleDetection"
@@ -32,10 +34,11 @@ class PimpleModel(BaseModel):
         )
 
         # Example: return a final conclusive value (e.g., the average over the 30 seconds)
-        print(f"pimple_num: {self.pimple_num}, pimple_bboxes: {self.pimple_bboxes}")
         return {
-            "pimple_num": self.pimple_num,
-            "pimple_bboxes": self.pimple_bboxes
+            "pimples": {
+                "count": self.pimple_num,
+                "coordinates": self.pimple_bboxes,
+            }
         }
 
     def frame(
@@ -50,18 +53,17 @@ class PimpleModel(BaseModel):
 
         # Demonstrate the usage of helper functions/classes in another file.
         pimple_num, pimple_bboxes = self.pimple_detector.run(frame)
-        
+
         self.pimple_num = pimple_num
         self.pimple_bboxes = pimple_bboxes
 
         print(
             f"{self.name} finish processing sid({sid})'s frame@{datetime.fromtimestamp(timestamp/1000)}"
         )
-        
+
         return {
-            "pimple_num": self.pimple_num,
-            "pimple_bboxes": self.pimple_bboxes,
-            "sid": sid,
-            "pimple_resp_ts": time.time(),
-            "pimple_process_time": sleep_time,
+            "pimples": {
+                "count": self.pimple_num,
+                "coordinates": self.pimple_bboxes,
+            }
         }

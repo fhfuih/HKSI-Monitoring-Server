@@ -2,10 +2,12 @@ import time
 from datetime import datetime
 from typing import Hashable, Optional
 
-from models.base_model import *
+import numpy as np
+
+from models.base_model import BaseModel
+
 from .eye_bag_detection import EyeBagDetection
 
-import numpy as np
 
 class EyeBagModel(BaseModel):
     name = "EyeBagDetection"
@@ -38,13 +40,11 @@ class EyeBagModel(BaseModel):
             f"{self.name} ended at {datetime.fromtimestamp(timestamp/1000) if timestamp else 'unknown time'} with sid {sid}"
         )
 
-        # Example: return a final conclusive value (e.g., the average over the 30 seconds)
-        print(f"left_eye_has_bag: {self.left_eye_has_bag}, right_eye_has_bag: {self.right_eye_has_bag}")
         return {
-            "left_eye_has_bag": self.left_eye_has_bag,
-            "right_eye_has_bag": self.right_eye_has_bag,
-            "left_eye_bag_region": self.left_eye_bag_region,
-            "right_eye_bag_region": self.right_eye_bag_region
+            "darkCircles": {
+                "left": self.left_eye_bag_region,
+                "right": self.right_eye_bag_region,
+            }
         }
 
     def frame(
@@ -57,24 +57,30 @@ class EyeBagModel(BaseModel):
         sleep_time = 1  # random.uniform(0.5, 2)
         time.sleep(sleep_time)
         # Demonstrate the usage of helper functions/classes in another file.
-        left_eye_has_bag, right_eye_has_bag, left_eye_bag_region, right_eye_bag_region = self.eye_bag_detector.run(frame)
-        
+        (
+            left_eye_has_bag,
+            right_eye_has_bag,
+            left_eye_bag_region,
+            right_eye_bag_region,
+        ) = self.eye_bag_detector.run(frame)
+
         self.left_eye_has_bag = bool(left_eye_has_bag)
         self.right_eye_has_bag = bool(right_eye_has_bag)
 
-        self.left_eye_bag_region = left_eye_bag_region if self.left_eye_has_bag else None
-        self.right_eye_bag_region = right_eye_bag_region if self.right_eye_has_bag else None
+        self.left_eye_bag_region = (
+            left_eye_bag_region if self.left_eye_has_bag else None
+        )
+        self.right_eye_bag_region = (
+            right_eye_bag_region if self.right_eye_has_bag else None
+        )
 
         print(
             f"{self.name} finish processing sid({sid})'s frame@{datetime.fromtimestamp(timestamp/1000)}"
         )
-        
+
         return {
-            "left_eye_has_bag": self.left_eye_has_bag,
-            "right_eye_has_bag": self.right_eye_has_bag,
-            "left_eye_bag_region": self.left_eye_bag_region,
-            "right_eye_bag_region": self.right_eye_bag_region,
-            "sid": sid,
-            "eye_bag_resp_ts": time.time(),
-            "eye_bag_process_time": sleep_time,
+            "darkCircles": {
+                "left": self.left_eye_bag_region,
+                "right": self.right_eye_bag_region,
+            }
         }
