@@ -40,14 +40,17 @@ from models.mock_model_2 import MockModel2
 from models.Physiological import HeartRateAndHeartRateVariabilityModel
 from models.pimple_model import PimpleModel
 
+# PYTORCH_ENABLE_MPS_FALLBACK=1
+os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "0"
 ROOT = os.path.dirname(__file__)
-MODELS: list[type[BaseModel]] = [
-    FatigueModel,
-    EyeBagModel,
-    PimpleModel,
-    HeartRateAndHeartRateVariabilityModel,
-]
-# MODELS: list[type[BaseModel]] = [FatigueModel, EyeBagModel, PimpleModel]
+# MODELS: list[type[BaseModel]] = [
+#     FatigueModel,
+#     EyeBagModel,
+#     PimpleModel,
+#     HeartRateAndHeartRateVariabilityModel,
+# ]
+
+MODELS: list[type[BaseModel]] = [FatigueModel, EyeBagModel, PimpleModel]
 # MODELS = [MockModel1, MockModel2]
 # MODELS: list[type[BaseModel]] = [HeartRateAndHeartRateVariabilityModel]
 

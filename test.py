@@ -19,6 +19,8 @@ from dotenv import load_dotenv
 
 Role = Enum("Role", ["offer", "answer"])
 
+os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "0"
+
 
 async def run(
     pc: RTCPeerConnection,
@@ -131,7 +133,7 @@ if __name__ == "__main__":
     load_dotenv()
 
     host = os.environ.get("HOST", "localhost")
-    port = os.environ.get("PORT")
+    port = os.environ.get("PORT", "8080")
 
     ssl_cert_file = (s := os.environ.get("SSL_CERT_FILE")) and s.strip()
     ssl_key_file = (s := os.environ.get("SSL_KEY_FILE")) and s.strip()
