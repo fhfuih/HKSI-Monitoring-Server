@@ -12,6 +12,7 @@ from models.utils import GPU, datetime_from_ms
 
 from . import utils
 
+
 logger = logging.getLogger("HKSI WebRTC")
 
 
@@ -40,7 +41,7 @@ class FatigueModel(BaseModel):
         logger.debug(
             f"{self.name} ended at {timestamp or 'unknown time'} with sid {sid}"
         )
-        logger.debug("Fatigue rate: ", self.rating)
+        logger.debug(f"Fatigue rate: {self.rating}")
 
         # # Free up memory
         # del self.model
@@ -48,7 +49,10 @@ class FatigueModel(BaseModel):
         # del self.generation_config
         # self.frame_buffer.clear()
 
-        return {"status": "completed"}
+        # return {"status": "completed"}
+        return {
+            "fatigue": self.rating
+        }
 
     def frame(
         self, sid: Hashable, frame: np.ndarray, timestamp: int, *args, **kwargs
