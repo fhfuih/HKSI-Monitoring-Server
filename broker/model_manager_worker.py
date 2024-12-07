@@ -69,7 +69,7 @@ class ModelManagerWorker(Thread):
         logger.debug("__del__ ModelManagerWorker")
 
     ### Public methods
-    def add_start(self, sid: Hashable, timestamp: int):
+    def add_start(self, sid: Hashable, timestamp: Optional[int]):
         # If already started, do nothing
         if sid in self.__start_actions:
             logger.debug(
@@ -228,7 +228,7 @@ class ModelManagerWorker(Thread):
             )
 
             if should_retry:
-                # When not available, but due to the lack of new frames, retry later
+                # Frame is not available, but because new frames haven't arrived. Retry later.
                 ## If new frames come in every 1/30 second, should we just wait for a while?
                 ## But anyway, I'd just "retry" immediately for now.
                 self.__models_report_queue.put(result_report)

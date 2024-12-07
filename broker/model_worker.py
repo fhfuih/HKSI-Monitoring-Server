@@ -66,12 +66,6 @@ class ModelWorker(Thread):
                 raw_result = self.__model.frame(sid, action.data, action.timestamp)
 
             elif action.type == ModelActionType.Start:
-                if action.timestamp is None:
-                    logger.warning(
-                        "In session (%s), skipping start action without timestamp",
-                        sid,
-                    )
-                    continue
                 raw_result = self.__model.start(sid, action.timestamp)
 
             elif action.type == ModelActionType.End:

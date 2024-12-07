@@ -203,7 +203,7 @@ async def offer(request: web.Request) -> web.Response:
             track = cast(RemoteStreamTrack, track)
 
             # Mark session start
-            broker.start_session(pc_id, 0)
+            broker.start_session(pc_id)
             logger.debug(f"PC({pc_id}) model session started")
 
             # This sends (forwards) the video back to every client

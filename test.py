@@ -3,8 +3,8 @@ import asyncio
 import json
 import logging
 import os
-from enum import Enum
 import ssl
+from enum import Enum
 from typing import Optional, Union
 
 import aiohttp
@@ -46,7 +46,7 @@ async def run(
             message_obj: dict = json.loads(message)
             if message_obj.get("final", False):
                 print(
-                    "The test client receives the `end` data ('final': true). Closing the connection in 3 seconds..."
+                    "The test client receives the `end` data ('final': true). Closing the connection in 3 seconds…"
                 )
                 await asyncio.sleep(3)
 

@@ -19,12 +19,15 @@ class Broker:
     ) -> None:
         self._sessions: dict[Hashable, SessionAsset] = {}
         self._models = models
+        logger.info(
+            "Broker initialized the following models: %s", [m.name for m in models]
+        )
 
         self.manager_thread = ModelManagerWorker(self._models, self)
         self.manager_thread.start()
         logger.debug("Broker started ModelManagerWorker")
 
-    def start_session(self, sid: Hashable, timestamp: int):
+    def start_session(self, sid: Hashable, timestamp: Optional[int] = None):
         if sid in self._sessions:
             raise KeyError(f"A session with id {sid} already exists.")
 
