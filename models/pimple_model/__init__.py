@@ -48,8 +48,8 @@ class PimpleModel(BaseModel):
     ) -> Optional[dict]:
         logger.debug(f"{self.name} start processing sid({sid})'s frame@{timestamp}")
 
-        sleep_time = 1  # random.uniform(0.5, 2)
-        time.sleep(sleep_time)
+        # sleep_time = 1  # random.uniform(0.5, 2)
+        # time.sleep(sleep_time)
 
         # Demonstrate the usage of helper functions/classes in another file.
         pimple_num, pimple_bboxes = self.pimple_detector.run(frame)
