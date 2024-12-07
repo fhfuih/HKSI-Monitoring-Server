@@ -3,8 +3,8 @@ import asyncio
 import json
 import logging
 import os
-from enum import Enum
 import ssl
+from enum import Enum
 from typing import Optional, Union
 
 import aiohttp
@@ -42,11 +42,12 @@ async def run(
 
         @data_channel.on("message")
         async def on_data_channel_message(message):
-            print("Data channel message:", message)
+            print("🤖", message)
             message_obj: dict = json.loads(message)
             if message_obj.get("final", False):
-                print("The test client receives the `end` data.", message_obj)
-                print("Closing the connection in 3 seconds...")
+                print(
+                    "The test client receives the `end` data ('final': true). Closing the connection in 3 seconds…"
+                )
                 await asyncio.sleep(3)
 
                 await pc.close()

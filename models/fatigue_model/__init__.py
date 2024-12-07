@@ -1,3 +1,4 @@
+import logging
 import time
 from collections import deque
 from datetime import datetime
@@ -10,6 +11,8 @@ from models.base_model import BaseModel
 from models.utils import GPU, datetime_from_ms
 
 from . import utils
+
+logger = logging.getLogger("HKSI WebRTC")
 
 
 class FatigueModel(BaseModel):
@@ -25,19 +28,19 @@ class FatigueModel(BaseModel):
         self.skip_frames = 10
         self.rating = -1
 
-    def start(self, sid: Hashable, timestamp: int, *args, **kwargs) -> None:
-        print(
-            f"{self.name} started at {datetime.fromtimestamp(timestamp/1000)} with sid {sid}"
+    def start(self, sid: Hashable, timestamp: Optional[int], *args, **kwargs) -> None:
+        logger.debug(
+            f"{self.name} started at {timestamp or 'unknown time'} with sid {sid}"
         )
         self.frame_buffer.clear()
         self.frame_count = 0
         self.rating = -1
 
     def end(self, sid: Hashable, timestamp: Optional[int], *args, **kwargs) -> dict:
-        print(
-            f"{self.name} ended at {datetime.fromtimestamp(timestamp/1000) if timestamp else 'unknown time'} with sid {sid}"
+        logger.debug(
+            f"{self.name} ended at {timestamp or 'unknown time'} with sid {sid}"
         )
-        print("Fatigue rate: ", self.rating)
+        logger.debug("Fatigue rate: ", self.rating)
 
         # # Free up memory
         # del self.model
@@ -60,7 +63,7 @@ class FatigueModel(BaseModel):
         # if len(self.frame_buffer) < 16:
         #     return None
 
-        print(
+        logger.debug(
             f"{self.name} start processing sid({sid})'s frames@{timestamp} at {datetime.now()}"
         )
 
@@ -98,11 +101,11 @@ class FatigueModel(BaseModel):
 
         confidence = utils.get_highest_prob(processed_scores)
 
-        # print("------", rating, confidence, "--------")
+        # logger.debug("------", rating, confidence, "--------")
 
         process_time = time.time() - start_time
 
-        print(
+        logger.debug(
             f"{self.name} finish processing sid({sid})'s frames@{timestamp} at {datetime.now()}"
         )
 
@@ -120,4 +123,3 @@ class FatigueModel(BaseModel):
             "fatigue_resp_ts": time.time(),
             "fatigue_process_time": process_time,
         }
-

@@ -1,5 +1,5 @@
+import logging
 import time
-from datetime import datetime
 from typing import Hashable, Optional
 
 import numpy as np
@@ -7,6 +7,8 @@ import numpy as np
 from models.base_model import BaseModel
 
 from .pimple_detection import PimpleDetection
+
+logger = logging.getLogger("HKSI WebRTC")
 
 
 class PimpleModel(BaseModel):
@@ -21,16 +23,16 @@ class PimpleModel(BaseModel):
         self.pimple_num = 0
         self.pimple_bboxes = []
 
-    def start(self, sid: Hashable, timestamp: int, *args, **kwargs) -> None:
-        print(
-            f"{self.name} started at {datetime.fromtimestamp(timestamp/1000)} with sid {sid}"
+    def start(self, sid: Hashable, timestamp: Optional[int], *args, **kwargs) -> None:
+        logger.debug(
+            f"{self.name} started at {timestamp or 'unknown time'} with sid {sid}"
         )
         self.pimple_num = 0
         self.pimple_bboxes = []
 
     def end(self, sid: Hashable, timestamp: Optional[int], *args, **kwargs) -> dict:
-        print(
-            f"{self.name} ended at {datetime.fromtimestamp(timestamp/1000) if timestamp else 'unknown time'} with sid {sid}"
+        logger.debug(
+            f"{self.name} ended at {timestamp or 'unknown time'} with sid {sid}"
         )
 
         # Example: return a final conclusive value (e.g., the average over the 30 seconds)
@@ -44,9 +46,7 @@ class PimpleModel(BaseModel):
     def frame(
         self, sid: Hashable, frame: np.ndarray, timestamp: int, *args, **kwargs
     ) -> Optional[dict]:
-        print(
-            f"{self.name} start processing sid({sid})'s frame@{datetime.fromtimestamp(timestamp/1000)}"
-        )
+        logger.debug(f"{self.name} start processing sid({sid})'s frame@{timestamp}")
 
         sleep_time = 1  # random.uniform(0.5, 2)
         time.sleep(sleep_time)
@@ -57,9 +57,7 @@ class PimpleModel(BaseModel):
         self.pimple_num = pimple_num
         self.pimple_bboxes = pimple_bboxes
 
-        print(
-            f"{self.name} finish processing sid({sid})'s frame@{datetime.fromtimestamp(timestamp/1000)}"
-        )
+        logger.debug(f"{self.name} finish processing sid({sid})'s frame@{timestamp}")
 
         return {
             "pimples": {

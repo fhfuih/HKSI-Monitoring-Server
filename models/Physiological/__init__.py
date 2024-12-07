@@ -1,7 +1,6 @@
 import logging
 import random
 import time
-from datetime import datetime
 from typing import Hashable, Optional
 
 import numpy as np
@@ -27,9 +26,9 @@ class HeartRateAndHeartRateVariabilityModel(BaseModel):
         self.FA = model_FaceAnalysis()
         self.__reset_state()
 
-    def start(self, sid: Hashable, timestamp: int, *args, **kwargs) -> None:
+    def start(self, sid: Hashable, timestamp: Optional[int], *args, **kwargs) -> None:
         logger.debug(
-            f"{self.name} started at {datetime.fromtimestamp(timestamp / 1000)} with sid {sid}"
+            f"{self.name} started at {timestamp or 'unknown time'} with sid {sid}"
         )
 
         self.__reset_state()
@@ -37,7 +36,7 @@ class HeartRateAndHeartRateVariabilityModel(BaseModel):
     def end(self, sid: Hashable, timestamp: Optional[int], *args, **kwargs) -> dict:
         logger.debug("self.hr: ", self.hr)
         logger.debug(
-            f"{self.name} ended at {datetime.fromtimestamp(timestamp / 1000) if timestamp else 'unknown time'} with sid {sid}"
+            f"{self.name} ended at {timestamp or 'unknown time'} with sid {sid}"
         )
 
         # logger.debug("len(self.meanRGB)", len(self.meanRGB))
@@ -68,12 +67,10 @@ class HeartRateAndHeartRateVariabilityModel(BaseModel):
     ) -> Optional[dict]:
         frame_return_dict = {"sid": sid}
 
-        logger.debug(
-            f"{self.name} start processing sid({sid})'s frame@{datetime.fromtimestamp(timestamp / 1000)}"
-        )
+        logger.debug(f"{self.name} start processing sid({sid})'s frame@{timestamp}")
         self.meanRGB = self.FA.DetectSkin(frame, self.fs)
         logger.debug(
-            f"{self.name}-FA sid({sid}) frame@{datetime.fromtimestamp(timestamp / 1000)} len(self.meanRGB): {len(self.meanRGB)}"
+            f"{self.name}-FA sid({sid}) frame@{timestamp} len(self.meanRGB): {len(self.meanRGB)}"
         )
         # up to now, face analysis have finished
 
@@ -82,15 +79,13 @@ class HeartRateAndHeartRateVariabilityModel(BaseModel):
             hr, _ = model_HR(self.meanRGB, self.fs).evaluate_HR()
             hr = np.round(hr, 1)
             self.hr.append(hr)
-            logger.debug(
-                f"{self.name}-HR sid({sid}) frame@{datetime.fromtimestamp(timestamp / 1000)} HR: {hr} bpm"
-            )
+            logger.debug(f"{self.name}-HR sid({sid}) frame@{timestamp} HR: {hr} bpm")
             frame_return_dict["hr"] = hr
         # up to now, heartrate have finished and the heart rate of this frame is 'hr'
 
         if self.count >= 2 * self.fs:
             logger.debug(
-                f"{self.name}-HRV sid({sid}) frame@{datetime.fromtimestamp(timestamp / 1000)} start processing"
+                f"{self.name}-HRV sid({sid}) frame@{timestamp} start processing"
             )
             self.frameID.append(self.count)
             self.timeInfo.append(timestamp / 1000)
@@ -117,123 +112,123 @@ class HeartRateAndHeartRateVariabilityModel(BaseModel):
         self.count = 0
 
 
-class __FaceAnalysisModel(BaseModel):
-    name = "FaceAnalysisModel"
+# class __FaceAnalysisModel(BaseModel):
+#     name = "FaceAnalysisModel"
 
-    def __init__(self):
-        super().__init__()
-        self.FA = model_FaceAnalysis()
-        self.meanRGB = []
+#     def __init__(self):
+#         super().__init__()
+#         self.FA = model_FaceAnalysis()
+#         self.meanRGB = []
 
-    def start(self, sid: Hashable, timestamp: int, *args, **kwargs) -> None:
-        print(
-            f"{self.name} started at {datetime.fromtimestamp(timestamp/1000)} with sid {sid}"
-        )
+#     def start(self, sid: Hashable, timestamp: int, *args, **kwargs) -> None:
+#         print(
+#             f"{self.name} started at {timestamp} with sid {sid}"
+#         )
 
-    def end(self, sid: Hashable, timestamp: Optional[int], *args, **kwargs) -> dict:
-        print(
-            f"{self.name} ended at {datetime.fromtimestamp(timestamp/1000) if timestamp else 'unknown time'} with sid {sid}"
-        )
+#     def end(self, sid: Hashable, timestamp: Optional[int], *args, **kwargs) -> dict:
+#         print(
+#             f"{self.name} ended at {timestamp or 'unknown time'} with sid {sid}"
+#         )
 
-        return {"meanRGB": self.meanRGB}
+#         return {"meanRGB": self.meanRGB}
 
-    def frame(
-        self, sid: Hashable, frame: np.ndarray, timestamp: int, *args, **kwargs
-    ) -> Optional[dict]:
-        fs = kwargs.get("fs")
-        print(
-            f"{self.name} start processing sid({sid})'s frame@{datetime.fromtimestamp(timestamp/1000)}"
-        )
+#     def frame(
+#         self, sid: Hashable, frame: np.ndarray, timestamp: int, *args, **kwargs
+#     ) -> Optional[dict]:
+#         fs = kwargs.get("fs")
+#         print(
+#             f"{self.name} start processing sid({sid})'s frame@{timestamp}"
+#         )
 
-        self.meanRGB = self.FA.DetectSkin(frame, fs)
+#         self.meanRGB = self.FA.DetectSkin(frame, fs)
 
-        return {"sid": sid, "meanRGB": self.meanRGB}
-
-
-class __HeartRateModel(BaseModel):
-    name = "HeartRateModel"
-
-    def __init__(self):
-        super().__init__()
-        self.hr = []
-
-    def start(self, sid: Hashable, timestamp: int, *args, **kwargs) -> None:
-        print(
-            f"{self.name} started at {datetime.fromtimestamp(timestamp/1000)} with sid {sid}"
-        )
-
-    def end(self, sid: Hashable, timestamp: Optional[int], *args, **kwargs) -> dict:
-        print(
-            f"{self.name} ended at {datetime.fromtimestamp(timestamp/1000) if timestamp else 'unknown time'} with sid {sid}"
-        )
-
-        return {"HeartRate": self.hr}
-
-    def frame(
-        self, sid: Hashable, frame: np.ndarray, timestamp: int, *args, **kwargs
-    ) -> Optional[dict]:
-        # sleep_time = 2
-        # time.sleep(sleep_time)
-
-        fs = kwargs.get("fs")
-        meanRGB = kwargs.get("meanRGB")
-
-        if len(meanRGB) > 10 * fs and len(meanRGB) % fs == 0:
-            print(
-                f"{self.name} start processing sid({sid})'s frame@{datetime.fromtimestamp(timestamp/1000)}"
-            )
-
-            self.model = model_HR(meanRGB, fs)
-            hr, _ = self.model.evaluate_HR()
-            self.hr.append(np.round(hr, 1))
-            print(f"heart rate: {np.round(hr, 1)} bpm")
-
-        return {"sid": sid, "HeartRate": self.hr}
+#         return {"sid": sid, "meanRGB": self.meanRGB}
 
 
-class __HRVModel(BaseModel):
-    name = "HRVModel"
+# class __HeartRateModel(BaseModel):
+#     name = "HeartRateModel"
 
-    def __init__(self):
-        super().__init__()
-        self.timeInfo = []
-        self.frameID = []
-        self.count = 0
+#     def __init__(self):
+#         super().__init__()
+#         self.hr = []
 
-    def start(self, sid: Hashable, timestamp: int, *args, **kwargs) -> None:
-        print(
-            f"{self.name} started at {datetime.fromtimestamp(timestamp/1000)} with sid {sid}"
-        )
+#     def start(self, sid: Hashable, timestamp: int, *args, **kwargs) -> None:
+#         print(
+#             f"{self.name} started at {timestamp} with sid {sid}"
+#         )
 
-    def end(self, sid: Hashable, timestamp: Optional[int], *args, **kwargs) -> dict:
-        print(
-            f"{self.name} ended at {datetime.fromtimestamp(timestamp/1000) if timestamp else 'unknown time'} with sid {sid}"
-        )
+#     def end(self, sid: Hashable, timestamp: Optional[int], *args, **kwargs) -> dict:
+#         print(
+#             f"{self.name} ended at {timestamp or 'unknown time'} with sid {sid}"
+#         )
 
-        fs = kwargs.get("fs")
-        meanRGB = kwargs.get("meanRGB")
-        model = model_HRV(
-            meanRGB, fs, interpolate=True, time_data=self.timeInfo, interp_freq=120
-        )
-        result_dict = model.HRV_measure()
+#         return {"HeartRate": self.hr}
 
-        print(f'heart rate variability: {result_dict["HRV_SDNN"]} ms')
-        print(f'heart rate: {result_dict["HR"]} bpm')
+#     def frame(
+#         self, sid: Hashable, frame: np.ndarray, timestamp: int, *args, **kwargs
+#     ) -> Optional[dict]:
+#         # sleep_time = 2
+#         # time.sleep(sleep_time)
 
-        return {"HRV_SDNN": result_dict["HRV_SDNN"], "HeartRate": result_dict["HR"]}
+#         fs = kwargs.get("fs")
+#         meanRGB = kwargs.get("meanRGB")
 
-    def frame(
-        self, sid: Hashable, frame: np.ndarray, timestamp: int, *args, **kwargs
-    ) -> Optional[dict]:
-        fs = kwargs.get("fs")
-        if self.count >= 2 * fs:
-            print(
-                f"{self.name} start processing sid({sid})'s frame@{datetime.fromtimestamp(timestamp/1000)}"
-            )
+#         if len(meanRGB) > 10 * fs and len(meanRGB) % fs == 0:
+#             print(
+#                 f"{self.name} start processing sid({sid})'s frame@{timestamp}"
+#             )
 
-            self.frameID.append(self.count)
-            self.timeInfo.append(timestamp / 1000)
+#             self.model = model_HR(meanRGB, fs)
+#             hr, _ = self.model.evaluate_HR()
+#             self.hr.append(np.round(hr, 1))
+#             print(f"heart rate: {np.round(hr, 1)} bpm")
 
-        self.count += 1
+#         return {"sid": sid, "HeartRate": self.hr}
 
-        return {"sid": sid, "NumFrames": self.frameID, "timestamps": self.timeInfo}
+
+# class __HRVModel(BaseModel):
+#     name = "HRVModel"
+
+#     def __init__(self):
+#         super().__init__()
+#         self.timeInfo = []
+#         self.frameID = []
+#         self.count = 0
+
+#     def start(self, sid: Hashable, timestamp: int, *args, **kwargs) -> None:
+#         print(
+#             f"{self.name} started at {timestamp} with sid {sid}"
+#         )
+
+#     def end(self, sid: Hashable, timestamp: Optional[int], *args, **kwargs) -> dict:
+#         print(
+#             f"{self.name} ended at {timestamp or 'unknown time'} with sid {sid}"
+#         )
+
+#         fs = kwargs.get("fs")
+#         meanRGB = kwargs.get("meanRGB")
+#         model = model_HRV(
+#             meanRGB, fs, interpolate=True, time_data=self.timeInfo, interp_freq=120
+#         )
+#         result_dict = model.HRV_measure()
+
+#         print(f'heart rate variability: {result_dict["HRV_SDNN"]} ms')
+#         print(f'heart rate: {result_dict["HR"]} bpm')
+
+#         return {"HRV_SDNN": result_dict["HRV_SDNN"], "HeartRate": result_dict["HR"]}
+
+#     def frame(
+#         self, sid: Hashable, frame: np.ndarray, timestamp: int, *args, **kwargs
+#     ) -> Optional[dict]:
+#         fs = kwargs.get("fs")
+#         if self.count >= 2 * fs:
+#             print(
+#                 f"{self.name} start processing sid({sid})'s frame@{timestamp}"
+#             )
+
+#             self.frameID.append(self.count)
+#             self.timeInfo.append(timestamp / 1000)
+
+#         self.count += 1
+
+#         return {"sid": sid, "NumFrames": self.frameID, "timestamps": self.timeInfo}
