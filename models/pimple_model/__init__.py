@@ -20,14 +20,14 @@ class PimpleModel(BaseModel):
         # pimple_detector = PimpleDetection(ckpt_path)
         self.pimple_detector = PimpleDetection("shape_predictor_81_face_landmarks.dat")
 
-        self.pimple_num = 0
+        self.pimple_num = -1
         self.pimple_bboxes = []
 
     def start(self, sid: Hashable, timestamp: Optional[int], *args, **kwargs) -> None:
         logger.debug(
             f"{self.name} started at {timestamp or 'unknown time'} with sid {sid}"
         )
-        self.pimple_num = 0
+        self.pimple_num = -1
         self.pimple_bboxes = []
 
     def end(self, sid: Hashable, timestamp: Optional[int], *args, **kwargs) -> dict:
