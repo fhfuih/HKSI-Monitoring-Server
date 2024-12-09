@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import ssl
+import time
 from enum import Enum
 from typing import Optional, Union
 
@@ -42,7 +43,7 @@ async def run(
 
         @data_channel.on("message")
         async def on_data_channel_message(message):
-            print("🤖", message)
+            print("🤖", message, time.time())
             message_obj: dict = json.loads(message)
             if message_obj.get("final", False):
                 print(

@@ -45,7 +45,7 @@ class ModelManagerWorker(Thread):
 
         # For model workers to set the latest results and periodically report results to the broker (sid -> model index -> result)
         self.__model_results: dict[Hashable, list[Optional[ModelResultReport]]] = {}
-        self.__last_report_time: int = time.time_ns()  # (in milliseconds)
+        self.__last_report_time: float = time.time()  # (in seconds)
 
         # Record the progress of each model (sid -> model index -> deque index)
         # -3 means end, -2 means resting (created but not started), -1 means start, 0 means the first frame, etc.
@@ -200,9 +200,8 @@ class ModelManagerWorker(Thread):
         # If the model was processing the start action, give the first frame (-1 -> 0)
         # If the model was processing a frame, give the next frame (n -> n+1)
         # But need to check whether the next frame has been added
-        if sid not in self.__frames:
+        if (frames := self.__frames.get(sid, None)) is None:
             return (None, None, False)
-        frames = self.__frames[sid]
         next_progress = progress + 1
         if next_progress >= len(frames):
             return (None, None, True)
@@ -212,15 +211,17 @@ class ModelManagerWorker(Thread):
     ### Thread routine
     def run(self) -> None:
         while True:
+            # Wait until a new result is available
             result_report = self.__models_report_queue.get()
 
             # Save current action's result
             self.__set_result(result_report)
 
             # When a new result is saved, check if it is time to report the results
-            current_time = time.time_ns()
-            if current_time - self.__last_report_time > 500:
+            current_time = time.time()
+            if current_time - self.__last_report_time > 0.5:
                 self.__report_results(result_report.sid)
+                self.__last_report_time = current_time
 
             # Get next action
             action, new_progress, should_retry = self.__progress(
@@ -229,8 +230,8 @@ class ModelManagerWorker(Thread):
 
             if should_retry:
                 # Frame is not available, but because new frames haven't arrived. Retry later.
-                ## If new frames come in every 1/30 second, should we just wait for a while?
-                ## But anyway, I'd just "retry" immediately for now.
+                ## A hacky way to retry is to wait 1/30 second
+                time.sleep(1 / 30)
                 self.__models_report_queue.put(result_report)
             elif action is not None and new_progress is not None:
                 # When the next action is available, send it to the corresponding model worker
