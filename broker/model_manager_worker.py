@@ -217,9 +217,11 @@ class ModelManagerWorker(Thread):
             # Save current action's result
             self.__set_result(result_report)
 
-            # When a new result is saved, check if it is time to report the results
+            # Throttle the result reporting such that
+            # - It reports every 0.5 second
+            # - It reports when the result is final
             current_time = time.time()
-            if current_time - self.__last_report_time > 0.5:
+            if current_time - self.__last_report_time > 0.5 or result_report.is_final:
                 self.__report_results(result_report.sid)
                 self.__last_report_time = current_time
 
