@@ -34,7 +34,7 @@ class HeartRateAndHeartRateVariabilityModel(BaseModel):
         self.__reset_state()
 
     def end(self, sid: Hashable, timestamp: Optional[int], *args, **kwargs) -> dict:
-        logger.debug("self.hr: ", self.hr)
+        logger.debug("self.hr: %s", self.hr)
         logger.debug(
             f"{self.name} ended at {timestamp or 'unknown time'} with sid {sid}"
         )
