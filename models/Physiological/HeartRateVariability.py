@@ -4,6 +4,7 @@
 
 # from collections import Sequence
 from typing import Optional, cast
+
 try:
     from collections.abc import Sequence
 except ImportError:

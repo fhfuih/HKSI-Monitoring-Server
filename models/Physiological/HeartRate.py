@@ -8,7 +8,6 @@ from scipy.signal import butter, sosfiltfilt
 from scipy.fft import fft, fftfreq
 
 
-
 class model_HR:
     def __init__(self, meanRGB, fs):
         self.meanRGB = np.array(meanRGB)
