@@ -23,7 +23,6 @@ class HeartRateAndHeartRateVariabilityModel(BaseModel):
         super().__init__()
         self.fs = 30
 
-        self.FA = model_FaceAnalysis()
         self.__reset_state()
 
     def start(self, sid: Hashable, timestamp: Optional[int], *args, **kwargs) -> None:
@@ -103,6 +102,8 @@ class HeartRateAndHeartRateVariabilityModel(BaseModel):
         return frame_return_dict
 
     def __reset_state(self):
+        self.FA = model_FaceAnalysis()
+
         self.meanRGB = np.array([]).reshape(-1, 3)
 
         self.hr = []
@@ -232,12 +233,6 @@ class HeartRateAndHeartRateVariabilityModel(BaseModel):
 #         self.count += 1
 
 #         return {"sid": sid, "NumFrames": self.frameID, "timestamps": self.timeInfo}
-
-
-
-
-
-
 
 
 # import logging

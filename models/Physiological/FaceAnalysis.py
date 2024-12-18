@@ -22,6 +22,8 @@ class model_FaceAnalysis:
         if self.count >= fs * 2:  # throw away first 2 seconds
             frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             faces_detector = self.detector(frame_gray)
+            if len(faces_detector) == 0:
+                return np.array(self.meanRGB).reshape(-1, 3)
             face_detector = faces_detector[0]
             x = face_detector.left()
             y = face_detector.top()
@@ -32,12 +34,15 @@ class model_FaceAnalysis:
             if self.count == fs * 2:
                 self.sd.compute_stats(face)
 
-            skinFace, Threshold = self.sd.get_skin(
-                face, filt_kern_size=0, verbose=False, plot=False
-            )
+            try:
+                skinFace, Threshold = self.sd.get_skin(
+                    face, filt_kern_size=0, verbose=False, plot=False
+                )
 
-            b, g, r = self.rgb_mean(skinFace)
-            self.meanRGB.append([r, g, b])
+                b, g, r = self.rgb_mean(skinFace)
+                self.meanRGB.append([r, g, b])
+            except ValueError:
+                pass
 
         self.count += 1
 

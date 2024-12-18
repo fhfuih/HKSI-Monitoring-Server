@@ -115,9 +115,9 @@ class ModelManagerWorker(Thread):
         q.append(ModelAction(ModelActionType.Frame, sid, timestamp, data))
 
     ### Private fuctions
-    def __set_result(self, result: ModelResultReport) -> None:
-        sid = result.sid
-        model_index = result.model_index
+    def __set_result(self, result_report: ModelResultReport) -> None:
+        sid = result_report.sid
+        model_index = result_report.model_index
 
         # Get model's current progress
         if sid not in self.__model_progress:
@@ -129,7 +129,22 @@ class ModelManagerWorker(Thread):
             return
 
         # Otherwise, he model is processing end or frame. Store the result
-        self.__model_results[sid][model_index] = result
+        raw_result = (
+            result_report.result.copy() if result_report.result is not None else {}
+        )
+        if (
+            previous_result_report := self.__model_results[sid][model_index]
+        ) is not None and previous_result_report.result is not None:
+            for k, v in previous_result_report.result.items():
+                if k not in raw_result or raw_result[k] is None:
+                    raw_result[k] = v
+        self.__model_results[sid][model_index] = ModelResultReport(
+            sid=result_report.sid,
+            model_index=result_report.model_index,
+            progress=result_report.progress,
+            result=raw_result,
+            is_final=result_report.is_final,
+        )
 
     def __report_results(self, sid: Hashable) -> None:
         # Combine all results into a single dict
