@@ -52,9 +52,9 @@ ROOT = os.path.dirname(__file__)
 #     HeartRateAndHeartRateVariabilityModel,
 # ]
 
-MODELS: list[type[BaseModel]] = [FatigueModel, EyeBagModel, PimpleModel]
+# MODELS: list[type[BaseModel]] = [FatigueModel, EyeBagModel, PimpleModel]
 # MODELS = [MockModel1, MockModel2]
-# MODELS: list[type[BaseModel]] = [HeartRateAndHeartRateVariabilityModel]
+MODELS: list[type[BaseModel]] = [HeartRateAndHeartRateVariabilityModel]
 
 
 # Logs
