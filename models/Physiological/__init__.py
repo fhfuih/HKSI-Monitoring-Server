@@ -5,6 +5,7 @@ from typing import Hashable, Optional
 
 import numpy as np
 
+# from main_hr import meanRGB
 # from dask.array.reductions import mean_agg
 # from .base_model import BaseModel
 from models.base_model import BaseModel
@@ -38,8 +39,9 @@ class HeartRateAndHeartRateVariabilityModel(BaseModel):
             f"{self.name} ended at {timestamp or 'unknown time'} with sid {sid}"
         )
 
-        # logger.debug("len(self.meanRGB)", len(self.meanRGB))
-        # logger.debug("self.timeInfo", self.timeInfo)
+        logger.debug(f"len(self.meanRGB): {len(self.meanRGB)}")
+        logger.debug(f"len(self.frameID): {len(self.frameID)}, {self.frameID}")
+        logger.debug(f"len(self.timeInfo): {len(self.timeInfo)}, {self.timeInfo}")
 
         model = model_HRV(
             self.meanRGB,
@@ -67,13 +69,21 @@ class HeartRateAndHeartRateVariabilityModel(BaseModel):
         frame_return_dict = {"sid": sid}
 
         logger.debug(f"{self.name} start processing sid({sid})'s frame@{timestamp}")
-        self.meanRGB = self.FA.DetectSkin(frame, self.fs)
+        FA_result = self.FA.DetectSkin(frame, self.fs)
         logger.debug(
-            f"{self.name}-FA sid({sid}) frame@{timestamp} len(self.meanRGB): {len(self.meanRGB)}"
+            f"{self.name}-FA sid({sid}) frame@{timestamp}"
         )
+        if FA_result is not None:
+            self.meanRGB, FA_count, success_detect = FA_result
+        else:
+            return frame_return_dict
+
+        if not success_detect:
+            return frame_return_dict
         # up to now, face analysis have finished
 
-        if len(self.meanRGB) > 10 * self.fs and len(self.meanRGB) % self.fs == 0:
+        # if len(self.meanRGB) > 10 * self.fs and len(self.meanRGB) % self.fs == 0:
+        if FA_count > 10 * self.fs and FA_count % self.fs == 0:
             # fs = 30
             hr, _ = model_HR(self.meanRGB, self.fs).evaluate_HR()
             hr = np.round(hr, 1)
@@ -82,17 +92,18 @@ class HeartRateAndHeartRateVariabilityModel(BaseModel):
             frame_return_dict["hr"] = hr
         # up to now, heartrate have finished and the heart rate of this frame is 'hr'
 
-        if self.count >= 2 * self.fs:
+        # if len(self.meanRGB) >= 2 * self.fs:
+        if FA_count >= 2 * self.fs:
             logger.debug(
                 f"{self.name}-HRV sid({sid}) frame@{timestamp} start processing"
             )
-            self.frameID.append(self.count)
+            self.frameID.append(FA_count)
             self.timeInfo.append(timestamp / 1000)
 
             # frame_return_dict["NumFrames"] = self.frameID
             # frame_return_dict["timestamps"] = self.timeInfo
 
-        self.count += 1
+        # self.count += 1
         # up to now, hrv have finished but there does not exist the value of hrv until end
 
         # return {"sid": sid, "meanRGB": self.meanRGB}  //  return {"sid": sid, "HeartRate" : self.hr}

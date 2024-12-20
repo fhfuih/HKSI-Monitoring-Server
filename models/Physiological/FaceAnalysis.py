@@ -23,7 +23,8 @@ class model_FaceAnalysis:
             frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             faces_detector = self.detector(frame_gray)
             if len(faces_detector) == 0:
-                return np.array(self.meanRGB).reshape(-1, 3)
+                self.count += 1
+                return np.array(self.meanRGB).reshape(-1, 3), self.count-1, False
             face_detector = faces_detector[0]
             x = face_detector.left()
             y = face_detector.top()
@@ -41,12 +42,14 @@ class model_FaceAnalysis:
 
                 b, g, r = self.rgb_mean(skinFace)
                 self.meanRGB.append([r, g, b])
+                self.count += 1
+                return np.array(self.meanRGB).reshape(-1, 3), self.count-1, True
             except ValueError:
                 pass
-
         self.count += 1
+        return np.array(self.meanRGB).reshape(-1, 3), self.count-1, False
 
-        return np.array(self.meanRGB).reshape(-1, 3)
+
 
     def rgb_mean(self, skinFace):
         """This function calculates mean of the each channel for the

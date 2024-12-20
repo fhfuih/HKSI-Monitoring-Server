@@ -45,16 +45,16 @@ from models.pimple_model import PimpleModel
 
 
 ROOT = os.path.dirname(__file__)
-# MODELS: list[type[BaseModel]] = [
-#     FatigueModel,
-#     EyeBagModel,
-#     PimpleModel,
-#     HeartRateAndHeartRateVariabilityModel,
-# ]
+MODELS: list[type[BaseModel]] = [
+    FatigueModel,
+    EyeBagModel,
+    PimpleModel,
+    HeartRateAndHeartRateVariabilityModel,
+]
 
 # MODELS: list[type[BaseModel]] = [FatigueModel, EyeBagModel, PimpleModel]
 # MODELS = [MockModel1, MockModel2]
-MODELS: list[type[BaseModel]] = [HeartRateAndHeartRateVariabilityModel]
+# MODELS: list[type[BaseModel]] = [HeartRateAndHeartRateVariabilityModel]
 
 
 # Logs
