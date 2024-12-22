@@ -149,7 +149,7 @@ class ModelManagerWorker(Thread):
     def __report_results(self, sid: Hashable) -> None:
         # Combine all results into a single dict
         combined_result = None
-        is_final = True
+        is_final = True  # Will be set to False later if any of the model is not final
         for model_report in self.__model_results[sid]:
             if (
                 model_report is not None
