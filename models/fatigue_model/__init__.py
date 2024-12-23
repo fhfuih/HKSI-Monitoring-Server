@@ -17,7 +17,7 @@ logger = logging.getLogger("HKSI WebRTC")
 
 
 class FatigueModel(BaseModel):
-    name = "FatigueModel"
+    name = "Fatigue"
 
     def __init__(self):
         super().__init__()
@@ -50,9 +50,7 @@ class FatigueModel(BaseModel):
         # self.frame_buffer.clear()
 
         # return {"status": "completed"}
-        return {
-            "fatigue": self.rating
-        }
+        return {"fatigue": self.rating}
 
     def frame(
         self, sid: Hashable, frame: np.ndarray, timestamp: int, *args, **kwargs

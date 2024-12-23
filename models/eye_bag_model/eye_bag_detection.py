@@ -1,8 +1,10 @@
+import math
+import sys
+from typing import Annotated
+
 import cv2
 import dlib
 import numpy as np
-import math
-import sys
 
 
 class EyeBagDetection:
@@ -39,9 +41,14 @@ class EyeBagDetection:
         return np.array(sorted_points, np.int32).tolist()
 
     # Function to extract the average skin color from face landmarks
-    def get_average_skin_color(self, image, landmarks):
+    def get_average_skin_color(
+        self, image, landmarks
+    ) -> tuple[Annotated[bool, "face_exist"], Annotated[int, "average_color"]]:
         mask = np.zeros(image.shape[:2], dtype=np.uint8)
         face_poly = landmarks[:17] + landmarks[68:81]
+        if not len(face_poly):
+            # Maybe face_poly is empty, in which case no pixel is included in the avg
+            return False, 0
         points = np.array(
             face_poly, dtype=np.int32
         )  # Use the first 68 points for the face
@@ -49,7 +56,7 @@ class EyeBagDetection:
         skin_pixels = cv2.bitwise_and(image, image, mask=mask)
         skin_pixels = skin_pixels[np.where(mask == 255)]
         average_color = np.mean(skin_pixels, axis=0)
-        return average_color
+        return True, average_color
 
     # Function to get eye bags regions
     def get_eye_bags_regions(self, landmarks, offset=5):
@@ -145,19 +152,31 @@ class EyeBagDetection:
         )
 
     # Main function to detect dark circles
-    def run(self, image):
+    def run(
+        self, image
+    ) -> tuple[
+        Annotated[bool, "face_exist"],
+        Annotated[bool, "has_dark_circles_left"],
+        Annotated[bool, "has_dark_circles_right"],
+        Annotated[list, "left_eye_bag"],
+        Annotated[list, "right_eye_bag"],
+    ]:
         landmarks = self.get_face_landmarks(image)
         has_dark_circles_left = False
         has_dark_circles_right = False
 
-        average_skin_color = self.get_average_skin_color(image, landmarks)
+        face_exist, average_skin_color = self.get_average_skin_color(image, landmarks)
+        if not face_exist:
+            return False, False, False, [], []
+
         has_dark_circles_left, has_dark_circles_right, left_eye_bag, right_eye_bag = (
             self.detect_dark_circles(image, landmarks, average_skin_color)
         )
 
         return (
-            has_dark_circles_left,
-            has_dark_circles_right,
+            True,
+            bool(has_dark_circles_left),
+            bool(has_dark_circles_right),
             left_eye_bag,
             right_eye_bag,
         )

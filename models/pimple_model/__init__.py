@@ -12,7 +12,7 @@ logger = logging.getLogger("HKSI WebRTC")
 
 
 class PimpleModel(BaseModel):
-    name = "PimpleDetection"
+    name = "Pimple"
 
     def __init__(self):
         super().__init__()
@@ -52,7 +52,9 @@ class PimpleModel(BaseModel):
         # time.sleep(sleep_time)
 
         # Demonstrate the usage of helper functions/classes in another file.
-        pimple_num, pimple_bboxes = self.pimple_detector.run(frame)
+        face_exist, pimple_num, pimple_bboxes = self.pimple_detector.run(frame)
+        if not face_exist:
+            return {"pimples": None}
 
         self.pimple_num = pimple_num
         self.pimple_bboxes = pimple_bboxes

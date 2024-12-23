@@ -12,7 +12,7 @@ logger = logging.getLogger("HKSI WebRTC")
 
 
 class EyeBagModel(BaseModel):
-    name = "EyeBagDetection"
+    name = "DarkCircle"
 
     def __init__(self):
         super().__init__()
@@ -58,11 +58,15 @@ class EyeBagModel(BaseModel):
         # time.sleep(sleep_time)
         # Demonstrate the usage of helper functions/classes in another file.
         (
+            face_exist,
             left_eye_has_bag,
             right_eye_has_bag,
             left_eye_bag_region,
             right_eye_bag_region,
         ) = self.eye_bag_detector.run(frame)
+
+        if not face_exist:
+            return {"darkCircles": None}
 
         self.left_eye_has_bag = bool(left_eye_has_bag)
         self.right_eye_has_bag = bool(right_eye_has_bag)

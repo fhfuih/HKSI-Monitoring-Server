@@ -18,7 +18,7 @@ logger = logging.getLogger("HKSI WebRTC")
 
 
 class HeartRateAndHeartRateVariabilityModel(BaseModel):
-    name = "HeartRateAndHeartRateVariabilityModel "
+    name = "HR/V"
 
     def __init__(self):
         super().__init__()
@@ -59,7 +59,7 @@ class HeartRateAndHeartRateVariabilityModel(BaseModel):
         else:
             this_hrv = result_dict["HRV_SDNN"]
             this_hr = result_dict["HR"]
-        logger.debug(f"HRV: {this_hrv} ms. HR: {this_hr} bpm")
+        logger.info(f"HRV: {this_hrv} ms. HR: {this_hr} bpm")
         return {"hr": this_hr, "hrv": this_hrv}
         # # return {"meanRGB": self.meanRGB} // return {"HeartRate" : self.hr}
 
@@ -70,9 +70,7 @@ class HeartRateAndHeartRateVariabilityModel(BaseModel):
 
         logger.debug(f"{self.name} start processing sid({sid})'s frame@{timestamp}")
         FA_result = self.FA.DetectSkin(frame, self.fs)
-        logger.debug(
-            f"{self.name}-FA sid({sid}) frame@{timestamp}"
-        )
+        logger.debug(f"{self.name}-FA sid({sid}) frame@{timestamp}")
         if FA_result is not None:
             self.meanRGB, FA_count, success_detect = FA_result
         else:
@@ -88,7 +86,7 @@ class HeartRateAndHeartRateVariabilityModel(BaseModel):
             hr, _ = model_HR(self.meanRGB, self.fs).evaluate_HR()
             hr = np.round(hr, 1)
             self.hr.append(hr)
-            logger.debug(f"{self.name}-HR sid({sid}) frame@{timestamp} HR: {hr} bpm")
+            logger.info(f"{self.name}-HR sid({sid}) frame@{timestamp} HR: {hr} bpm")
             frame_return_dict["hr"] = hr
         # up to now, heartrate have finished and the heart rate of this frame is 'hr'
 
