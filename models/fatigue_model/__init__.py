@@ -120,7 +120,7 @@ class FatigueModel(BaseModel):
         # }
         return {
             "sid": sid,
-            "fatigue": rating,
+            "fatigue": self.rating,
             "confidence": confidence,
             "fatigue_resp_ts": time.time(),
             "fatigue_process_time": process_time,
