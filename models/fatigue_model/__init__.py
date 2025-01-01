@@ -99,7 +99,7 @@ class FatigueModel(BaseModel):
         #                                             self.generation_config, num_patches_list=num_patches_list)
 
         rating = float(response.strip())
-        self.rating = rating
+        self.rating = (rating - 1) * 25
 
         confidence = utils.get_highest_prob(processed_scores)
 
