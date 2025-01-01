@@ -65,5 +65,6 @@ class PimpleModel(BaseModel):
             "pimples": {
                 "count": self.pimple_num,
                 "coordinates": self.pimple_bboxes,
-            }
+            },
+            "pimpleCount": self.pimple_num
         }

@@ -84,5 +84,7 @@ class EyeBagModel(BaseModel):
             "darkCircles": {
                 "left": self.left_eye_bag_region,
                 "right": self.right_eye_bag_region,
-            }
+            },
+            "darkCircleLeft": self.left_eye_has_bag,
+            "darkCircleRight": self.right_eye_has_bag
         }
