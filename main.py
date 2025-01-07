@@ -3,6 +3,8 @@ import asyncio
 import json
 import logging
 import os
+import time
+
 import ssl
 import sys
 import uuid
@@ -41,19 +43,19 @@ from models.Physiological import HeartRateAndHeartRateVariabilityModel
 from models.pimple_model import PimpleModel
 
 # in MacBook
-# os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "0"
+# os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 
 
 ROOT = os.path.dirname(__file__)
-MODELS: list[type[BaseModel]] = [
-    FatigueModel,
-    EyeBagModel,
-    PimpleModel,
-    HeartRateAndHeartRateVariabilityModel,
-]
+# MODELS: list[type[BaseModel]] = [
+#     FatigueModel,
+#     EyeBagModel,
+#     PimpleModel,
+#     HeartRateAndHeartRateVariabilityModel,
+# ]
 
 # MODELS: list[type[BaseModel]] = [FatigueModel, EyeBagModel, PimpleModel]
-# MODELS = [MockModel1, MockModel2]
+MODELS = [MockModel1, MockModel2]
 # MODELS: list[type[BaseModel]] = [HeartRateAndHeartRateVariabilityModel]
 
 
@@ -87,6 +89,7 @@ class VideoTransformTrack(VideoStreamTrack):
     kind = "video"
 
     def __init__(self, track: MediaStreamTrack, sid: str, reset_timestamp=False):
+    # def __init__(self, track: MediaStreamTrack, sid: str, reset_timestamp=True):
         super().__init__()
         self.track = track
         self.sid = sid

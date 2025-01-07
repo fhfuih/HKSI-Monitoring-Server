@@ -4,6 +4,9 @@ from random import random
 def get_result(someParam):
     return {
         "fatigue": someParam,
+        "pimpleCount": 2,
+        "darkCircleLeft": True,
+        "darkCircleRight": False,
         "darkCircles": {
             "left": [(0, 0), (0.5, 0.5), (0, 0.5)],
             "right": None,
