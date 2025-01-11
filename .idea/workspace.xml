@@ -5,7 +5,10 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="72019321-6515-46d8-afce-cfe6306fa4fd" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/eye_bag_model/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/models/eye_bag_model/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/models/pimple_model/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/models/pimple_model/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/test.py" beforeDir="false" afterPath="$PROJECT_DIR$/test.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -102,7 +105,10 @@
       <workItem from="1735744357827" duration="6264000" />
       <workItem from="1735770776870" duration="975000" />
       <workItem from="1735797893410" duration="14326000" />
-      <workItem from="1736241150134" duration="1236000" />
+      <workItem from="1736241150134" duration="3572000" />
+      <workItem from="1736321904671" duration="2556000" />
+      <workItem from="1736492397824" duration="1165000" />
+      <workItem from="1736497549712" duration="20928000" />
     </task>
     <servers />
   </component>

@@ -24,8 +24,14 @@ class EyeBagModel(BaseModel):
         self.left_eye_has_bag = False
         self.right_eye_has_bag = False
 
-        self.left_eye_bag_region = None
-        self.right_eye_bag_region = None
+        self.one_second = 0
+        self.second_records_right = []
+        self.second_records_left = []
+
+        # self.left_eye_bag_region = None
+        # self.right_eye_bag_region = None
+
+        # self.__reset_state_for_second()
 
     def start(self, sid: Hashable, timestamp: Optional[int], *args, **kwargs) -> None:
         logger.debug(
@@ -34,8 +40,13 @@ class EyeBagModel(BaseModel):
         self.left_eye_has_bag = False
         self.right_eye_has_bag = False
 
-        self.left_eye_bag_region = None
-        self.right_eye_bag_region = None
+        # self.left_eye_bag_region = None
+        # self.right_eye_bag_region = None
+
+        # self.__reset_state_for_second()
+        self.one_second = 0
+        self.second_records_right = []
+        self.second_records_left = []
 
     def end(self, sid: Hashable, timestamp: Optional[int], *args, **kwargs) -> dict:
         logger.debug(
@@ -43,10 +54,12 @@ class EyeBagModel(BaseModel):
         )
 
         return {
-            "darkCircles": {
-                "left": self.left_eye_bag_region,
-                "right": self.right_eye_bag_region,
-            }
+            # "darkCircles": {
+            #     "left": self.left_eye_bag_region,
+            #     "right": self.right_eye_bag_region,
+            # },
+            "darkCircleLeft": self.left_eye_has_bag,
+            "darkCircleRight": self.right_eye_has_bag
         }
 
     def frame(
@@ -57,6 +70,25 @@ class EyeBagModel(BaseModel):
         # sleep_time = 1  # random.uniform(0.5, 2)
         # time.sleep(sleep_time)
         # Demonstrate the usage of helper functions/classes in another file.
+        # try:
+        #     (
+        #         face_exist,
+        #         left_eye_has_bag,
+        #         right_eye_has_bag,
+        #         left_eye_bag_region,
+        #         right_eye_bag_region,
+        #     ) = self.eye_bag_detector.run(frame)
+        # except:
+        #     return {
+        #         # "darkCircles": {
+        #         #     "left": self.left_eye_bag_region,
+        #         #     "right": self.right_eye_bag_region,
+        #         # },
+        #         "sid": sid,
+        #         "darkCircleLeft": self.left_eye_has_bag,
+        #         "darkCircleRight": self.right_eye_has_bag
+        #     }
+
         (
             face_exist,
             left_eye_has_bag,
@@ -65,26 +97,67 @@ class EyeBagModel(BaseModel):
             right_eye_bag_region,
         ) = self.eye_bag_detector.run(frame)
 
+        self.one_second += 1
+
+        # logger.debug(f"{self.one_second}{face_exist}{left_eye_has_bag}{right_eye_has_bag} -- self.one_second, face_exist, left_eye_has_bag, right_eye_has_bag")
+
         if not face_exist:
-            return {"darkCircles": None}
+            # return {"darkCircles": None}
+            return {
+                # "darkCircles": {
+                #     "left": self.left_eye_bag_region,
+                #     "right": self.right_eye_bag_region,
+                # },
+                "sid": sid,
+                "darkCircleLeft": self.left_eye_has_bag,
+                "darkCircleRight": self.right_eye_has_bag
+            }
 
-        self.left_eye_has_bag = bool(left_eye_has_bag)
-        self.right_eye_has_bag = bool(right_eye_has_bag)
+        current_left_eye_has_bag = int(left_eye_has_bag)
+        current_right_eye_has_bag = int(right_eye_has_bag)
 
-        self.left_eye_bag_region = (
-            left_eye_bag_region if self.left_eye_has_bag else None
-        )
-        self.right_eye_bag_region = (
-            right_eye_bag_region if self.right_eye_has_bag else None
-        )
+        # current_left_eye_bag_region = (
+        #     left_eye_bag_region if current_left_eye_has_bag else None
+        # )
+        # current_right_eye_bag_region = (
+        #     right_eye_bag_region if current_right_eye_has_bag else None
+        # )
+
+        self.second_records_left.append(current_left_eye_has_bag)
+        self.second_records_right.append(current_right_eye_has_bag)
+        # logger.debug(f"{self.second_records_left} self.second_records_left")
+        # logger.debug(f"{self.second_records_right} self.second_records_right")
+
+        if self.one_second == 30:
+            # self.left_eye_has_bag = (np.sum(self.second_records_left == True) >= np.sum(self.second_records_left == False))
+            # self.right_eye_has_bag = (np.sum(self.second_records_right == True) >= np.sum(self.second_records_right == False))
+
+            self.left_eye_has_bag = bool(np.sum(self.second_records_left[-30:]) >= 15)
+            self.right_eye_has_bag = bool(np.sum(self.second_records_right[-30:]) >= 15)
+            # self.left_eye_has_bag = True
+            # self.right_eye_has_bag = True
+
+            # logger.debug(f"{self.left_eye_has_bag} 30 frames left")
+            # logger.debug(f"{self.right_eye_has_bag} 30 frames right")
+            # logger.debug(f"{self.second_records_left[-30:]} self.second_records_left 30")
+            # logger.debug(f"{self.second_records_right[-30:]} self.second_records_right 30")
+
+            self.one_second = 0
+
+            # self.__reset_state_for_second()
 
         logger.debug(f"{self.name} finish processing sid({sid})'s frame@{timestamp}")
 
         return {
-            "darkCircles": {
-                "left": self.left_eye_bag_region,
-                "right": self.right_eye_bag_region,
-            },
+            # "darkCircles": {
+            #     "left": self.left_eye_bag_region,
+            #     "right": self.right_eye_bag_region,
+            # },
+            "sid": sid,
             "darkCircleLeft": self.left_eye_has_bag,
             "darkCircleRight": self.right_eye_has_bag
         }
+
+    # def __reset_state_for_second(self):
+    #     self.second_records_right = []
+    #     self.second_records_left = []

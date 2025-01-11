@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 
 Role = Enum("Role", ["offer", "answer"])
 
-os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "0"
+# os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "0"
 
 
 async def run(

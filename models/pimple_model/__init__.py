@@ -20,15 +20,17 @@ class PimpleModel(BaseModel):
         # pimple_detector = PimpleDetection(ckpt_path)
         self.pimple_detector = PimpleDetection("shape_predictor_81_face_landmarks.dat")
 
-        self.pimple_num = -1
-        self.pimple_bboxes = []
+        self.pimple_num = 0
+        # self.pimple_bboxes = []
+        self.second_records_pimple = []
 
     def start(self, sid: Hashable, timestamp: Optional[int], *args, **kwargs) -> None:
         logger.debug(
             f"{self.name} started at {timestamp or 'unknown time'} with sid {sid}"
         )
-        self.pimple_num = -1
-        self.pimple_bboxes = []
+        self.pimple_num = 0
+        # self.pimple_bboxes = []
+        self.second_records_pimple = []
 
     def end(self, sid: Hashable, timestamp: Optional[int], *args, **kwargs) -> dict:
         logger.debug(
@@ -37,10 +39,11 @@ class PimpleModel(BaseModel):
 
         # Example: return a final conclusive value (e.g., the average over the 30 seconds)
         return {
-            "pimples": {
-                "count": self.pimple_num,
-                "coordinates": self.pimple_bboxes,
-            }
+            # "pimples": {
+            #     "count": self.pimple_num,
+            #     "coordinates": self.pimple_bboxes,
+            # },
+            "pimpleCount": self.pimple_num
         }
 
     def frame(
@@ -54,17 +57,25 @@ class PimpleModel(BaseModel):
         # Demonstrate the usage of helper functions/classes in another file.
         face_exist, pimple_num, pimple_bboxes = self.pimple_detector.run(frame)
         if not face_exist:
-            return {"pimples": None}
+            return {"pimpleCount": None}
 
-        self.pimple_num = pimple_num
-        self.pimple_bboxes = pimple_bboxes
+        # self.pimple_num = pimple_num
+        # self.pimple_bboxes = pimple_bboxes
+        self.second_records_pimple.append(pimple_num)
+        # logger.debug(f"{self.second_records_pimple} self.second_records_pimple")
+
+        if len(self.second_records_pimple) == 30:
+            self.pimple_num = int(np.round(np.mean(self.second_records_pimple)))
+            self.second_records_pimple = []
+            # logger.debug(f"{self.pimple_num} 30 frames pimple")
 
         logger.debug(f"{self.name} finish processing sid({sid})'s frame@{timestamp}")
 
         return {
-            "pimples": {
-                "count": self.pimple_num,
-                "coordinates": self.pimple_bboxes,
-            },
+            "sid": sid,
+            # "pimples": {
+            #     "count": self.pimple_num,
+            #     "coordinates": self.pimple_bboxes,
+            # },
             "pimpleCount": self.pimple_num
         }
