@@ -128,10 +128,11 @@ class ModelManagerWorker(Thread):
         if progress == -1 or progress == -2:
             return
 
-        # Otherwise, he model is processing end or frame. Store the result
+        # Otherwise, the model is processing an `end` or a `frame`. Store the result.
         raw_result = (
             result_report.result.copy() if result_report.result is not None else {}
         )
+        # - Inherit last frame's values if this frame doesn't have
         if (
             previous_result_report := self.__model_results[sid][model_index]
         ) is not None and previous_result_report.result is not None:

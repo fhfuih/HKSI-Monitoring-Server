@@ -54,22 +54,31 @@ class ModelWorker(Thread):
             sid = action.sid
 
             # Actually run the model
-            if action.type == ModelActionType.Frame:
-                if action.data is None or action.timestamp is None:
-                    logger.warning(
-                        "In session (%s), skipping frame with incomplete data %s %s",
-                        sid,
-                        action.data.shape if action.data is not None else None,
-                        action.timestamp,
-                    )
-                    continue
-                raw_result = self.__model.frame(sid, action.data, action.timestamp)
+            try:
+                if action.type == ModelActionType.Frame:
+                    if action.data is None or action.timestamp is None:
+                        logger.warning(
+                            "In session (%s), skipping frame with incomplete data %s %s",
+                            sid,
+                            action.data.shape if action.data is not None else None,
+                            action.timestamp,
+                        )
+                        continue
+                    raw_result = self.__model.frame(sid, action.data, action.timestamp)
 
-            elif action.type == ModelActionType.Start:
-                raw_result = self.__model.start(sid, action.timestamp)
+                elif action.type == ModelActionType.Start:
+                    raw_result = self.__model.start(sid, action.timestamp)
 
-            elif action.type == ModelActionType.End:
-                raw_result = self.__model.end(sid, action.timestamp)
+                elif action.type == ModelActionType.End:
+                    raw_result = self.__model.end(sid, action.timestamp)
+            except Exception as e:
+                logger.exception(
+                    "ModelWorker: An error occurred while processing action %s at timestamp %s and progress %d. Discarding the result and exiting the thread.",
+                    action.type,
+                    action.timestamp,
+                    progress,
+                )
+                raw_result = {}
 
             # Report the result
             report = ModelResultReport(
