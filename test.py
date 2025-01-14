@@ -135,7 +135,8 @@ if __name__ == "__main__":
     load_dotenv()
 
     host = os.environ.get("HOST", "localhost")
-    port = os.environ.get("PORT", "8080")
+    # port = os.environ.get("PORT", "8080")
+    port = os.environ.get("PORT", "8083")
 
     ssl_cert_file = (s := os.environ.get("SSL_CERT_FILE")) and s.strip()
     ssl_key_file = (s := os.environ.get("SSL_KEY_FILE")) and s.strip()
