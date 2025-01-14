@@ -5,11 +5,13 @@ from collections import deque
 from collections.abc import Hashable
 from queue import SimpleQueue
 from threading import Semaphore, Thread
-from typing import Optional, Tuple, Type
+from typing import Optional, Tuple, Type, Dict, Any
 
 import numpy.typing as npt
 
 from models.base_model import BaseModel
+from models.face_rec_model import FaceRecognitionModel
+from services.database import DatabaseService
 
 from .model_worker import ModelWorker
 from .types import *
@@ -54,10 +56,13 @@ class ModelManagerWorker(Thread):
         # A queue for models to submit previous results and get next actions
         self.__models_report_queue = SimpleQueue[ModelResultReport]()
 
+        # Initialize database connection
+        self.db = DatabaseService()
+
         # Create model workers and start all of them
         self.__n_models = len(models)
         self.__model_workers = [
-            ModelWorker(M(), i, self.__models_report_queue)
+            ModelWorker(M(self.db) if isinstance(M(), FaceRecognitionModel) else M(), i, self.__models_report_queue)
             for (i, M) in enumerate(models)
         ]
 
@@ -150,12 +155,17 @@ class ModelManagerWorker(Thread):
     def __report_results(self, sid: Hashable) -> None:
         # Combine all results into a single dict
         combined_result = None
-        is_final = True  # Will be set to False later if any of the model is not final
+        is_final = True
+        person_id = None
+        
         for model_report in self.__model_results[sid]:
-            if (
-                model_report is not None
-                and (raw_result := model_report.result) is not None
-            ):
+            if (model_report is not None and 
+                (raw_result := model_report.result) is not None):
+                # Get person_id from face recognition model if available
+                if isinstance(self.__model_workers[model_report.model_index]._ModelWorker__model, 
+                            FaceRecognitionModel):
+                    person_id = raw_result.get('person_id')
+                
                 if combined_result is None:
                     combined_result = {}
                 combined_result.update(raw_result)
@@ -171,6 +181,7 @@ class ModelManagerWorker(Thread):
         broker = self.__broker()
         if broker is None:
             return
+            
         session_asset = broker._sessions.get(sid, None)
         if session_asset is None:
             on_intermediate_data = None
@@ -178,9 +189,18 @@ class ModelManagerWorker(Thread):
         else:
             on_intermediate_data = session_asset.on_intermediate_data
             on_end_data = session_asset.on_end_data
-        if (not is_final) and on_intermediate_data is not None:
+            
+        if not is_final and on_intermediate_data is not None:
+            # Store measurements for intermediate results
+            if person_id:
+                self._store_measurements(person_id, combined_result, combined_result.get("timestamp"))
             on_intermediate_data(combined_result)
+            
         elif is_final and on_end_data is not None:
+            # Add historical data for final results
+            if person_id:
+                historical_data = self._get_historical_data(person_id)
+                combined_result['historical_data'] = historical_data
             on_end_data(combined_result)
 
     def __progress(
@@ -257,3 +277,43 @@ class ModelManagerWorker(Thread):
                 self.__model_workers[result_report.model_index].queue.put(
                     action_with_progress
                 )
+
+    def _store_measurements(self, person_id: str, results: Dict[str, Any], timestamp: int):
+        """Store relevant measurements in the database"""
+        if not person_id:
+            return
+            
+        measurements = {
+            'heart_rate': results.get('hr'),
+            'heart_rate_variability': results.get('hrv'),
+            'fatigue': results.get('fatigue'),
+            'dark_circles': results.get('darkCircles'),
+            'pimples': results.get('pimples')
+        }
+        
+        # Store non-null measurements
+        for measurement_type, value in measurements.items():
+            if value is not None:
+                self.db.store_measurement(person_id, measurement_type, value, timestamp)
+
+    def _get_historical_data(self, person_id: str) -> Dict[str, Any]:
+        """Gather historical measurements for a person"""
+        if not person_id:
+            return {}
+        
+        historical_data = self.db.get_person_measurements_summary(person_id)
+        
+        # Process the data to include summary statistics
+        summary = {}
+        for measurement_type, measurements in historical_data.items():
+            if measurements:
+                values = [m['value'] for m in measurements]
+                summary[f"{measurement_type}_history"] = {
+                    'latest': measurements[0]['value'],
+                    'avg': sum(values) / len(values),
+                    'min': min(values),
+                    'max': max(values),
+                    'measurements': measurements
+                }
+        
+        return summary

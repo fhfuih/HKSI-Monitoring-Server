@@ -19,21 +19,21 @@ def load_model():
         AutoModel.from_pretrained(
             path,
             torch_dtype=torch.bfloat16,
-            low_cpu_mem_usage=True,
+            # low_cpu_mem_usage=True,
             trust_remote_code=True,
         )
         .eval()
         .to(GPU)
     )
     tokenizer = AutoTokenizer.from_pretrained(
-        path, trust_remote_code=True, use_fast=False
+        path, trust_remote_code=True, use_fast=True
     )
     return model, tokenizer
 
 
 def get_generation_config():
     return dict(
-        max_new_tokens=1024,
+        max_new_tokens=128,
         do_sample=False,
         output_scores=True,
         return_dict_in_generate=True,

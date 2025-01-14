@@ -41,6 +41,7 @@ from models.mock_model_1 import MockModel1
 from models.mock_model_2 import MockModel2
 from models.Physiological import HeartRateAndHeartRateVariabilityModel
 from models.pimple_model import PimpleModel
+from models.face_rec_model import FaceRecognitionModel
 
 # in MacBook
 # os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
@@ -52,9 +53,10 @@ MODELS: list[type[BaseModel]] = [
     EyeBagModel,
     PimpleModel,
     HeartRateAndHeartRateVariabilityModel,
+    FaceRecognitionModel
 ]
 
-# MODELS: list[type[BaseModel]] = [FatigueModel, EyeBagModel, PimpleModel]
+# MODELS: list[type[BaseModel]] = [FatigueModel, EyeBagModel, PimpleModel, FaceRecognitionModel]
 # MODELS = [MockModel1, MockModel2]
 # MODELS: list[type[BaseModel]] = [HeartRateAndHeartRateVariabilityModel]
 

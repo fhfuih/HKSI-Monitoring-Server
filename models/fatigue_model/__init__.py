@@ -24,9 +24,9 @@ class FatigueModel(BaseModel):
 
         self.model, self.tokenizer = utils.load_model()
         self.generation_config = utils.get_generation_config()
-        self.frame_buffer = deque(maxlen=24)
+        self.frame_buffer = deque(maxlen=12)
         self.frame_count = 0
-        self.skip_frames = 10
+        self.skip_frames = 12
         self.rating = -1
 
     def start(self, sid: Hashable, timestamp: Optional[int], *args, **kwargs) -> None:
@@ -36,6 +36,8 @@ class FatigueModel(BaseModel):
         self.frame_buffer.clear()
         self.frame_count = 0
         self.rating = -1
+        self.confidence = -1
+        self.previous_result = None
 
     def end(self, sid: Hashable, timestamp: Optional[int], *args, **kwargs) -> dict:
         logger.debug(
@@ -55,12 +57,15 @@ class FatigueModel(BaseModel):
     def frame(
         self, sid: Hashable, frame: np.ndarray, timestamp: int, *args, **kwargs
     ) -> Optional[dict]:
-        # self.frame_count += 1
-
-        if self.frame_count % self.skip_frames == 0:
-            self.frame_buffer.append(frame)
-
+        
         self.frame_count += 1
+        self.frame_buffer.append(frame)
+
+        if self.frame_count % self.skip_frames != 1:
+            # print(f"Skipping frame {self.frame_count}")
+            return self.previous_result
+        
+        # self.frame_count += 1
 
         # if len(self.frame_buffer) < 16:
         #     return None
@@ -77,7 +82,7 @@ class FatigueModel(BaseModel):
         pixel_values = pixel_values.to(GPU, dtype=torch.bfloat16)
 
         video_prefix = "".join(
-            [f"Frame{i*10+1}: <image>\n" for i in range(len(num_patches_list))]
+            [f"Frame{i*self.skip_frames+1}: <image>\n" for i in range(len(num_patches_list))]
         )
         question = "Rate the fatigue level of the person in this video segment on a scale from 1 to 5, where 1 is completely fresh and 5 is extremely exhausted. Answer with only a number."
         full_question = video_prefix + question
@@ -102,6 +107,7 @@ class FatigueModel(BaseModel):
         self.rating = (rating - 1) * 0.25
 
         confidence = utils.get_highest_prob(processed_scores)
+        self.confidence = confidence
 
         # logger.debug("------", rating, confidence, "--------")
 
@@ -118,10 +124,14 @@ class FatigueModel(BaseModel):
         #     "fatigue_resp_ts": time.time(),
         #     "fatigue_process_time": process_time,
         # }
-        return {
+        result = {
             "sid": sid,
             "fatigue": self.rating,
             "confidence": confidence,
             "fatigue_resp_ts": time.time(),
             "fatigue_process_time": process_time,
         }
+        self.previous_result = result
+
+        return result
+
