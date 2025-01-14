@@ -40,8 +40,10 @@ class HeartRateAndHeartRateVariabilityModel(BaseModel):
         )
 
         logger.debug(f"len(self.meanRGB): {len(self.meanRGB)}")
-        logger.debug(f"len(self.frameID): {len(self.frameID)}, {self.frameID}")
-        logger.debug(f"len(self.timeInfo): {len(self.timeInfo)}, {self.timeInfo}")
+        logger.debug(f"len(self.frameID): {len(self.frameID)}")
+        logger.debug(f"len(self.timeInfo): {len(self.timeInfo)}")
+        # logger.debug(f"len(self.frameID): {len(self.frameID)}, {self.frameID}")
+        # logger.debug(f"len(self.timeInfo): {len(self.timeInfo)}, {self.timeInfo}")
 
         model = model_HRV(
             self.meanRGB,
