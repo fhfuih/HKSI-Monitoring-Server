@@ -26,7 +26,7 @@ class FatigueModel(BaseModel):
         self.generation_config = utils.get_generation_config()
         self.frame_buffer = deque(maxlen=12)
         self.frame_count = 0
-        self.skip_frames = 12
+        self.skip_frames = 10
         self.rating = -1
 
     def start(self, sid: Hashable, timestamp: Optional[int], *args, **kwargs) -> None:
