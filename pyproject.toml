@@ -30,6 +30,10 @@ pyampd = "^0.0.1"
 msvc-runtime = { version = "^14.40.33807", platform = "win32" }
 mediapipe = "0.10.7"
 python-dotenv = "^1.0.1"
+insightface = "^0.7.3"
+onnx = "^1.17.0"
+onnxruntime = "1.19.2"
+pymongo = "4.10.1"
 
 [tool.ruff.lint]
 select = ["D", "I"]

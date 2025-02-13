@@ -43,6 +43,22 @@ class FatigueModel(BaseModel):
         self.confidence = -1
         self.previous_result = None
 
+    def end(self, sid: Hashable, timestamp: Optional[int], *args, **kwargs) -> dict:
+        logger.debug(
+            f"{self.name} ended at {timestamp or 'unknown time'} with sid {sid}"
+        )
+        logger.debug(f"Fatigue rate: {self.rating}")
+
+        # # Free up memory
+        # del self.model
+        # del self.tokenizer
+        # del self.generation_config
+        # self.frame_buffer.clear()
+
+        # return {"status": "completed"}
+        return {"fatigue": self.rating}
+
+
     def frame(
         self, sid: Hashable, frame: np.ndarray, timestamp: int, *args, **kwargs
     ) -> Optional[dict]:
