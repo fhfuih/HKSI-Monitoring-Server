@@ -5,8 +5,12 @@ import insightface
 from insightface.app import FaceAnalysis
 import time
 from datetime import datetime
+import logging
 
 from services.database import DatabaseService
+
+logger = logging.getLogger("HKSI WebRTC")
+
 class FaceRecognitionModel(BaseModel):
     name = "FaceRecognition"
 
@@ -21,14 +25,18 @@ class FaceRecognitionModel(BaseModel):
         self.db = db
 
     def start(self, sid: Hashable, timestamp: int, *args, **kwargs) -> None:
-        # print(f"{self.name} started at {datetime.fromtimestamp(timestamp/1000) or "unknown time"} with sid {sid}")
+        logger.debug(
+            f"{self.name} started at {timestamp or 'unknown time'} with sid {sid}"
+        )
         self.recognition_completed = False
         self.current_face_embedding = None
         self.current_person_id = None
         self.rec_result = None
 
     def end(self, sid: Hashable, timestamp: Optional[int], *args, **kwargs) -> dict:
-        print(f"{self.name} ended at {datetime.fromtimestamp(timestamp/1000) if timestamp else 'unknown time'} with sid {sid}")
+        logger.debug(
+            f"{self.name} ended at {timestamp or 'unknown time'} with sid {sid}"
+        )
         return {"person_id": self.current_person_id}
 
     def frame(self, sid: Hashable, frame: np.ndarray, timestamp: int, *args, **kwargs) -> Optional[dict]:

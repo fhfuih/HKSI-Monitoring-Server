@@ -24,7 +24,7 @@ class FatigueModel(BaseModel):
 
         self.model, self.tokenizer = utils.load_model()
         self.generation_config = utils.get_generation_config()
-        self.frame_buffer = deque(maxlen=12)
+        self.frame_buffer = deque(maxlen=16)
         self.frame_count = 0  # counts all frames
         self.stored_count = 0  # counts stored frames
         self.skip_frames = 10  # store every 10th frame (2.5 fps from 25 fps)
@@ -70,8 +70,8 @@ class FatigueModel(BaseModel):
             self.frame_buffer.append(frame)
             self.stored_count += 1
             
-            # Process only after storing every 3 frames
-            if self.stored_count % 12 == 0:
+            # Process only after storing every few frames (frame buffer size)
+            if self.stored_count % self.frame_buffer.maxlen == 0:
                 logger.debug(
                     f"{self.name} start processing sid({sid})'s frames@{timestamp} at {datetime.now()}"
                 )

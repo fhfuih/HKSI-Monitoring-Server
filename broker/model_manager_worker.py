@@ -157,15 +157,16 @@ class ModelManagerWorker(Thread):
         combined_result = None
         is_final = True
         person_id = None
-        
+        report_timestamp = int(time.time() * 1000)  # Get timestamp in milliseconds
+
         for model_report in self.__model_results[sid]:
-            if (model_report is not None and 
+            if (model_report is not None and
                 (raw_result := model_report.result) is not None):
                 # Get person_id from face recognition model if available
-                if isinstance(self.__model_workers[model_report.model_index]._ModelWorker__model, 
+                if isinstance(self.__model_workers[model_report.model_index]._ModelWorker__model,
                             FaceRecognitionModel):
                     person_id = raw_result.get('person_id')
-                
+
                 if combined_result is None:
                     combined_result = {}
                 combined_result.update(raw_result)
@@ -176,12 +177,13 @@ class ModelManagerWorker(Thread):
             return
 
         combined_result["final"] = is_final
+        combined_result["timestamp"] = report_timestamp  # Add the report timestamp
 
         # Report the result to the broker
         broker = self.__broker()
         if broker is None:
             return
-            
+
         session_asset = broker._sessions.get(sid, None)
         if session_asset is None:
             on_intermediate_data = None
@@ -189,18 +191,22 @@ class ModelManagerWorker(Thread):
         else:
             on_intermediate_data = session_asset.on_intermediate_data
             on_end_data = session_asset.on_end_data
-            
+
         if not is_final and on_intermediate_data is not None:
             # Store measurements for intermediate results
-            if person_id:
-                self._store_measurements(person_id, combined_result, combined_result.get("timestamp"))
+
+            # if person_id:
+            #     self._store_measurements(person_id, combined_result, combined_result.get("timestamp"))
             on_intermediate_data(combined_result)
-            
+
         elif is_final and on_end_data is not None:
             # Add historical data for final results
+
             if person_id:
                 historical_data = self._get_historical_data(person_id)
+                self._store_measurements(person_id, combined_result, combined_result.get("timestamp"), combined_result.get("final"))
                 combined_result['historical_data'] = historical_data
+                
             on_end_data(combined_result)
 
     def __progress(
@@ -278,23 +284,30 @@ class ModelManagerWorker(Thread):
                     action_with_progress
                 )
 
-    def _store_measurements(self, person_id: str, results: Dict[str, Any], timestamp: int):
+    def _store_measurements(self, person_id: str, results: Dict[str, Any], timestamp: int, is_final: bool = False):
         """Store relevant measurements in the database"""
         if not person_id:
             return
-            
+
         measurements = {
             'heart_rate': results.get('hr'),
             'heart_rate_variability': results.get('hrv'),
             'fatigue': results.get('fatigue'),
-            'dark_circles': results.get('darkCircles'),
-            'pimples': results.get('pimples')
+            'darkCircleLeft': results.get('darkCircleLeft'),
+            'darkCircleRight': results.get('darkCircleRight'),
+            'pimpleCount': results.get('pimpleCount')
         }
-        
+
         # Store non-null measurements
         for measurement_type, value in measurements.items():
             if value is not None:
-                self.db.store_measurement(person_id, measurement_type, value, timestamp)
+                self.db.store_measurement(
+                    person_id=person_id,
+                    measurement_type=measurement_type,
+                    value=value,
+                    timestamp=timestamp,
+                    is_final=is_final
+                )
 
     def _get_historical_data(self, person_id: str) -> Dict[str, Any]:
         """Gather historical measurements for a person"""
