@@ -31,6 +31,12 @@ def register_people(image_dir: str):
             # Use filename as person name (without extension)
             name = os.path.splitext(filename)[0]
 
+            # Check if a similar embedding already exists
+            existing_person_id = db.find_matching_person(embedding)
+            if existing_person_id:
+                print(f"A similar face is already registered with ID {existing_person_id}. Skipping {filename}.")
+                continue
+
             # Generate unique ID
             person_id = str(uuid.uuid4())
 
