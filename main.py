@@ -153,12 +153,19 @@ async def offer(request: web.Request) -> web.Response:
     else:
         recorder = MediaBlackhole()
 
-    # get the main thread's event loop (datachannel uses asyncio underneath)
+    # get the main thread's event loop (For datachannel. It uses asyncio underneath)
     loop = asyncio.get_running_loop()
+
+    @pc.on("connectionstatechange")
+    async def on_connectionstatechange():  # type: ignore
+        logger.info("PC(%s) -> %s", pc_id, pc.connectionState)
+        if pc.connectionState == "failed":
+            await pc.close()
+            pcs.discard(pc)
 
     @pc.on("datachannel")
     def on_datachannel(channel: RTCDataChannel):  # type: ignore
-        logger.info("PC(%s) connected to data channel %s", pc_id, channel.id)
+        logger.info("PC(%s) remote created datachannel %s", pc_id, channel.id)
 
         # Handle session-ending messages in the data channel
         @channel.on("message")
@@ -184,17 +191,10 @@ async def offer(request: web.Request) -> web.Response:
 
         broker.set_data_handler(pc_id, on_prediction, on_prediction)
 
-    @pc.on("connectionstatechange")
-    async def on_connectionstatechange():  # type: ignore
-        logger.info("PC(%s) state is %s", pc_id, pc.connectionState)
-        if pc.connectionState == "failed":
-            await pc.close()
-            pcs.discard(pc)
-
     @pc.on("track")
     def on_track(track: MediaStreamTrack):  # type: ignore
         logger.info(
-            "PC(%s) received %s track with id %s and type %s",
+            "PC(%s) remote created %s track with id %s and type %s",
             pc_id,
             track.kind,
             track.id,
