@@ -120,6 +120,7 @@ class VideoTransformTrack(VideoStreamTrack):
 
 
 async def offer(request: web.Request) -> web.Response:
+    ## Parse incoming offser SDP
     try:
         params = await request.json()
         offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
@@ -139,13 +140,14 @@ async def offer(request: web.Request) -> web.Response:
             status=400,
         )
 
+    ## Create Peer Connection
     pc = RTCPeerConnection()
     pc_id = str(uuid.uuid4())
     pcs.add(pc)
-
     logger.info("PC(%s) created for %s", pc_id, request.remote)
+    await pc.setRemoteDescription(offer)
 
-    # prepare local media
+    ## Prepare local media to record
     if record_path:
         file_name = record_path / f"{pc_id}.mp4"
         logger.info("PC(%s) recorded to %s", pc_id, file_name)
@@ -153,9 +155,10 @@ async def offer(request: web.Request) -> web.Response:
     else:
         recorder = MediaBlackhole()
 
-    # get the main thread's event loop (For datachannel. It uses asyncio underneath)
+    ## get the main thread's event loop (For datachannel. It uses asyncio underneath)
     loop = asyncio.get_running_loop()
 
+    ## Handlers for PeerConnection states
     @pc.on("connectionstatechange")
     async def on_connectionstatechange():  # type: ignore
         logger.info("PC(%s) -> %s", pc_id, pc.connectionState)
@@ -163,34 +166,7 @@ async def offer(request: web.Request) -> web.Response:
             await pc.close()
             pcs.discard(pc)
 
-    @pc.on("datachannel")
-    def on_datachannel(channel: RTCDataChannel):  # type: ignore
-        logger.info("PC(%s) remote created datachannel %s", pc_id, channel.id)
-
-        # Handle session-ending messages in the data channel
-        @channel.on("message")
-        def on_message(message):
-            logger.info("PC(%s) received message %s", pc_id, message)
-            if isinstance(message, str) and message.strip() == "end session":
-                # Mark session end
-                broker.end_session(pc_id)
-
-        # Let broker emit prediction data through datachannel
-        async def send_data(data: Optional[dict]):
-            d = json.dumps(
-                data,
-                ensure_ascii=False,
-                default=lambda o: logger.error(f"can't serialize {o}") or None,
-            )
-            channel.send(d)
-
-        def on_prediction(data: Optional[dict]):
-            if channel.readyState == "closed":
-                return
-            asyncio.ensure_future(send_data(data), loop=loop)
-
-        broker.set_data_handler(pc_id, on_prediction, on_prediction)
-
+    ## Handlers for video and audio tracks
     @pc.on("track")
     def on_track(track: MediaStreamTrack):  # type: ignore
         logger.info(
@@ -232,11 +208,39 @@ async def offer(request: web.Request) -> web.Response:
                 # The fix in https://github.com/aiortc/aiortc/issues/580 is already applied
                 await recorder.stop()
 
-    # handle offer
-    await pc.setRemoteDescription(offer)
-    await recorder.start()
+    ## Handlers for data channel
+    ## on Mar 2025, somehow aiortc cannot receive remote client's datachannel
+    ## have to create it here
+    datachannel = pc.createDataChannel("data")
 
-    # send answer
+    @datachannel.on("open")
+    def on_datachannel_open():
+        logger.debug(f"PC({pc_id}) local created datachannel %s", pc_id, datachannel.id)
+
+    @datachannel.on("message")
+    def on_message(message):
+        logger.info("PC(%s) received message %s", pc_id, message)
+        if isinstance(message, str) and message.strip() == "end session":
+            # Mark session end
+            broker.end_session(pc_id)
+
+    async def send_data(data: Optional[dict]):
+        d = json.dumps(
+            data,
+            ensure_ascii=False,
+            default=lambda o: logger.error(f"can't serialize {o}") or None,
+        )
+        datachannel.send(d)
+
+    def on_prediction(data: Optional[dict]):
+        if datachannel.readyState == "closed":
+            return
+        asyncio.ensure_future(send_data(data), loop=loop)
+
+    broker.set_data_handler(pc_id, on_prediction, on_prediction)
+
+    ## prepare recorder and send answer SDP
+    await recorder.start()
     # `answer` will never be null if we look into the source code.
     # The type checking is wrong.
     answer = await pc.createAnswer()
