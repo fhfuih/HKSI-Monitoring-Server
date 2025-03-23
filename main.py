@@ -3,14 +3,17 @@ import asyncio
 import json
 import logging
 import os
-import time
-
 import ssl
 import sys
+import time
 import uuid
 import warnings
 from pathlib import Path
 from typing import Awaitable, Optional, cast
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 import av
 import numpy as np
@@ -31,17 +34,16 @@ from aiortc.contrib.media import (
 from aiortc.rtcrtpreceiver import RemoteStreamTrack
 from av import logging as av_logging
 from av.video.frame import VideoFrame
-from dotenv import load_dotenv
 
 from broker import Broker
 from models.base_model import BaseModel
 from models.eye_bag_model import EyeBagModel
+from models.face_rec_model import FaceRecognitionModel
 from models.fatigue_model import FatigueModel
 from models.mock_model_1 import MockModel1
 from models.mock_model_2 import MockModel2
 from models.Physiological import HeartRateAndHeartRateVariabilityModel
 from models.pimple_model import PimpleModel
-from models.face_rec_model import FaceRecognitionModel
 
 # in MacBook
 # os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
@@ -53,7 +55,7 @@ MODELS: list[type[BaseModel]] = [
     EyeBagModel,
     PimpleModel,
     HeartRateAndHeartRateVariabilityModel,
-    FaceRecognitionModel
+    FaceRecognitionModel,
 ]
 
 # MODELS: list[type[BaseModel]] = [FatigueModel, EyeBagModel, PimpleModel, FaceRecognitionModel]
@@ -91,7 +93,7 @@ class VideoTransformTrack(VideoStreamTrack):
     kind = "video"
 
     def __init__(self, track: MediaStreamTrack, sid: str, reset_timestamp=False):
-    # def __init__(self, track: MediaStreamTrack, sid: str, reset_timestamp=True):
+        # def __init__(self, track: MediaStreamTrack, sid: str, reset_timestamp=True):
         super().__init__()
         self.track = track
         self.sid = sid
@@ -271,8 +273,6 @@ async def setupHttpServer() -> web.Application:
 
 
 if __name__ == "__main__":
-    load_dotenv()
-
     host = "127.0.0.1" if os.environ.get("ONLY_LOCALHOST") == "true" else "0.0.0.0"
     # port = os.environ.get("PORT")
     # if port is not None:
