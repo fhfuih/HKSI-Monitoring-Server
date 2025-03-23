@@ -24,7 +24,7 @@ timm = "^1.0.9"
 einops = "^0.8.0"
 accelerate = "^0.34.2"
 sentencepiece = "^0.2.0"
-dlib = "^19.24.6"
+dlib = "19.24.2" # newer version dlib may not install. https://github.com/davisking/dlib/issues/2961
 pandas = "^2.2.3"
 pyampd = "^0.0.1"
 msvc-runtime = { version = "^14.40.33807", platform = "win32" }
