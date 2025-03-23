@@ -208,36 +208,38 @@ async def offer(request: web.Request) -> web.Response:
                 # The fix in https://github.com/aiortc/aiortc/issues/580 is already applied
                 await recorder.stop()
 
-    ## Handlers for data channel
-    ## on Mar 2025, somehow aiortc cannot receive remote client's datachannel
-    ## have to create it here
-    datachannel = pc.createDataChannel("data")
+            ## AFTER video track is handled, make data channel for it
+            ## on Mar 2025, somehow aiortc cannot receive remote client's datachannel
+            ## have to create it here
+            datachannel = pc.createDataChannel("data")
 
-    @datachannel.on("open")
-    def on_datachannel_open():
-        logger.debug(f"PC({pc_id}) local created datachannel %s", pc_id, datachannel.id)
+            @datachannel.on("open")
+            def on_datachannel_open():
+                logger.debug(
+                    f"PC({pc_id}) local created datachannel %s", pc_id, datachannel.id
+                )
 
-    @datachannel.on("message")
-    def on_message(message):
-        logger.info("PC(%s) received message %s", pc_id, message)
-        if isinstance(message, str) and message.strip() == "end session":
-            # Mark session end
-            broker.end_session(pc_id)
+            @datachannel.on("message")
+            def on_message(message):
+                logger.info("PC(%s) received message %s", pc_id, message)
+                if isinstance(message, str) and message.strip() == "end session":
+                    # Mark session end
+                    broker.end_session(pc_id)
 
-    async def send_data(data: Optional[dict]):
-        d = json.dumps(
-            data,
-            ensure_ascii=False,
-            default=lambda o: logger.error(f"can't serialize {o}") or None,
-        )
-        datachannel.send(d)
+            async def send_data(data: Optional[dict]):
+                d = json.dumps(
+                    data,
+                    ensure_ascii=False,
+                    default=lambda o: logger.error(f"can't serialize {o}") or None,
+                )
+                datachannel.send(d)
 
-    def on_prediction(data: Optional[dict]):
-        if datachannel.readyState == "closed":
-            return
-        asyncio.ensure_future(send_data(data), loop=loop)
+            def on_prediction(data: Optional[dict]):
+                if datachannel.readyState == "closed":
+                    return
+                asyncio.ensure_future(send_data(data), loop=loop)
 
-    broker.set_data_handler(pc_id, on_prediction, on_prediction)
+            broker.set_data_handler(pc_id, on_prediction, on_prediction)
 
     ## prepare recorder and send answer SDP
     await recorder.start()
