@@ -274,10 +274,7 @@ async def setupHttpServer() -> web.Application:
 
 if __name__ == "__main__":
     host = "127.0.0.1" if os.environ.get("ONLY_LOCALHOST") == "true" else "0.0.0.0"
-    # port = os.environ.get("PORT")
-    # if port is not None:
-    #     port = int(port)
-    port = 8083
+    port = int(port_str) if (port_str := os.environ.get("PORT")) else 8083
 
     ssl_cert_file = os.environ.get("SSL_CERT_FILE")
     ssl_key_file = os.environ.get("SSL_KEY_FILE")
