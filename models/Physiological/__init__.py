@@ -53,16 +53,19 @@ class HeartRateAndHeartRateVariabilityModel(BaseModel):
             interp_freq=120,
         )
         result_dict = model.HRV_measure()
-        logger.debug(f"result_dict--{result_dict}")
+        logger.info(f"result_dict--{result_dict}")
 
         if np.isnan(result_dict["HRV_SDNN"]):
-            this_hrv = 100.0 + random.randint(-5, 5)
-            this_hr = self.hr[-1] if self.hr else (65.0 + random.randint(-5, 5))
+            logger.info(f"Final: no result_dict, use self.hr[-1]")
+            this_hr = self.hr[-1] if self.hr else -1
+            # this_hrv = 100.0 + random.randint(-5, 5)
+            # this_hr = self.hr[-1] if self.hr else (65.0 + random.randint(-5, 5))
         else:
-            this_hrv = result_dict["HRV_SDNN"]
+            # this_hrv = result_dict["HRV_SDNN"]
+            logger.info(f"Final: have result_dict, use result_dict[HR]")
             this_hr = result_dict["HR"]
-        logger.info(f"HRV: {this_hrv} ms. HR: {this_hr} bpm")
-        return {"hr": this_hr, "hrv": this_hrv}
+        logger.info(f"Final: HR == {this_hr} bpm")
+        return {"hr": this_hr}
         # # return {"meanRGB": self.meanRGB} // return {"HeartRate" : self.hr}
 
     def frame(

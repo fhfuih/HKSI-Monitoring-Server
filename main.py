@@ -170,13 +170,45 @@ async def offer(request: web.Request) -> web.Response:
         # Handle session-ending messages in the data channel
         @channel.on("message")
         def on_message(message):
-            logger.info("PC(%s) received message %s", pc_id, message)
+            logger.info("PC(%s) received message: %s", pc_id, message)
+
             if isinstance(message, str) and message.strip() == "end session":
                 # Mark session end
                 broker.end_session(pc_id)
+            else:
+                try:
+                    data = json.loads(message)
+                    if "ParticipantID" in data:
+                        participant_id = data["ParticipantID"]  # string for value
+                        print(f"Received ParticipantID: {participant_id}")
+                    if "Weight" in data:
+                        weight = data["Weight"]  # double for value
+                        print(f"Received weight: {weight}")
+                    if "Body Fat" in data:
+                        bodyfat = data["Body Fat"]  # double for value
+                        print(f"Received bodyfat: {bodyfat}")
+
+                    WELLNESS_KEYS = {
+                        "Muscle Soreness",
+                        "Stress",
+                        "Mood State",
+                        "Energy Levels",
+                        "Sleep Quality",
+                    }
+                    wellness_received = {
+                        k: v for k, v in data.items() if k in WELLNESS_KEYS
+                    }
+                    if wellness_received:
+                        print("Wellness Metrics Received:")  # int for each value
+                        for k, v in wellness_received.items():
+                            print(f"   - {k}: {v}")
+
+                except json.JSONDecodeError:
+                    print("Failed to decode message as JSON.")
 
         # Let broker emit prediction data through datachannel
         async def send_data(data: Optional[dict]):
+            logger.info("There is data sent from backend: %s", data)
             d = json.dumps(
                 data,
                 ensure_ascii=False,

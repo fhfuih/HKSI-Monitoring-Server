@@ -148,6 +148,8 @@ class EyeBagModel(BaseModel):
 
         logger.debug(f"{self.name} finish processing sid({sid})'s frame@{timestamp}")
 
+
+
         return {
             # "darkCircles": {
             #     "left": self.left_eye_bag_region,
