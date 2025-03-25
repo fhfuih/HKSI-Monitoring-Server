@@ -15,6 +15,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# some ops are not available in macOS metal accelerator
+# This allows fallback to CPU
+os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+
 import av
 import numpy as np
 from aiohttp import web

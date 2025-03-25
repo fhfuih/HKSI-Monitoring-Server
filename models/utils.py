@@ -33,10 +33,6 @@ try:
             GPU = torch.device("mps")
             _gpu_module = torch.mps
 
-            # some ops are not available in macOS metal accelerator
-            # This allows fallback to CPU
-            os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
-
         elif torch.cuda.is_available():  # NVidia CUDA
             GPU = torch.device("cuda")
             _gpu_module = torch.cuda
