@@ -18,15 +18,15 @@ try:
     if gpu_str := os.getenv("GPU_DEVICE", ""):
         # GPU config not None and not empty
         GPU = torch.device(gpu_str)
-        match gpu_str.split(":", 1)[0]:
-            case "mps":
-                _gpu_module = torch.mps
-            case "cuda":
-                _gpu_module = torch.cuda
-            case "xpu":
-                _gpu_module = torch.xpu
-            case _:
-                _gpu_module = torch.cpu
+        gpu_type = gpu_str.split(":", 1)[0]
+        if gpu_type == "mps":
+            _gpu_module = torch.mps
+        elif gpu_type == "cuda":
+            _gpu_module = torch.cuda
+        elif gpu_type == "xpu":
+            _gpu_module = torch.xpu
+        else:
+            _gpu_module = torch.cpu
     else:
         # Auto select GPU
         if torch.backends.mps.is_available():  # macOS metal
