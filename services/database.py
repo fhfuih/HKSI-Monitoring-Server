@@ -100,9 +100,45 @@ class DatabaseService:
                 return isinstance(value, bool) or (isinstance(value, (int, float)) and 0 <= value <= 1)
             elif measurement_type == "pimpleCount":
                 return isinstance(value, int) and value >= 0
+            # Add validation for wellness metrics
+            elif measurement_type in ["weight", "body_fat"]:
+                return isinstance(value, (int, float)) and value > 0
+            elif measurement_type in ["muscle_soreness", "stress", "mood_state", "energy_levels", "sleep_quality"]:
+                return isinstance(value, int) and 1 <= value <= 5
             return True
         except:
             return False
+
+    def store_wellness_data(self, person_id: str, data: Dict[str, Any], timestamp: int):
+        """Store wellness data received from frontend"""
+        try:
+            # Map frontend keys to database keys
+            wellness_mapping = {
+                "Weight": "weight",
+                "Body Fat": "body_fat",
+                "Muscle Soreness": "muscle_soreness",
+                "Stress": "stress", 
+                "Mood State": "mood_state",
+                "Energy Levels": "energy_levels",
+                "Sleep Quality": "sleep_quality"
+            }
+            
+            # Store each wellness metric
+            for frontend_key, db_key in wellness_mapping.items():
+                if frontend_key in data:
+                    value = data[frontend_key]
+                    if self._validate_measurement(db_key, value):
+                        self.store_measurement(
+                            person_id=person_id,
+                            measurement_type=db_key,
+                            value=value,
+                            timestamp=timestamp,
+                            is_final=True  # Wellness data is always considered final
+                        )
+                    else:
+                        logger.warning(f"Invalid wellness value for {db_key}: {value}")
+        except Exception as e:
+            logger.error(f"Failed to store wellness data: {str(e)}")
 
     def get_person_measurements_summary(
         self, 
@@ -113,7 +149,15 @@ class DatabaseService:
         """Get measurements summary with filtering options"""
         try:
             measurements = {}
-            for measurement_type in ['heart_rate', 'heart_rate_variability', 'fatigue', 'darkCircleLeft', 'darkCircleRight', 'pimpleCount']:
+            measurement_types = [
+                'heart_rate', 'heart_rate_variability', 'fatigue', 
+                'darkCircleLeft', 'darkCircleRight', 'pimpleCount',
+                # Add wellness metrics
+                'weight', 'body_fat', 'muscle_soreness', 'stress',
+                'mood_state', 'energy_levels', 'sleep_quality'
+            ]
+            
+            for measurement_type in measurement_types:
                 query = {
                     "person_id": person_id,
                     "type": measurement_type

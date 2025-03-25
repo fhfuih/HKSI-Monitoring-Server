@@ -48,6 +48,7 @@ from models.mock_model_1 import MockModel1
 from models.mock_model_2 import MockModel2
 from models.Physiological import HeartRateAndHeartRateVariabilityModel
 from models.pimple_model import PimpleModel
+from services.database import DatabaseService
 
 # in MacBook
 # os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
@@ -182,33 +183,44 @@ async def offer(request: web.Request) -> web.Response:
             else:
                 try:
                     data = json.loads(message)
+                    participant_id = None
+                    timestamp = int(time.time() * 1000)  # Current timestamp in milliseconds
+                    
+                    # Extract participant ID
                     if "ParticipantID" in data:
-                        participant_id = data["ParticipantID"]  # string for value
+                        participant_id = data["ParticipantID"]
                         print(f"Received ParticipantID: {participant_id}")
-                    if "Weight" in data:
-                        weight = data["Weight"]  # double for value
-                        print(f"Received weight: {weight}")
-                    if "Body Fat" in data:
-                        bodyfat = data["Body Fat"]  # double for value
-                        print(f"Received bodyfat: {bodyfat}")
-
-                    WELLNESS_KEYS = {
-                        "Muscle Soreness",
-                        "Stress",
-                        "Mood State",
-                        "Energy Levels",
-                        "Sleep Quality",
-                    }
-                    wellness_received = {
-                        k: v for k, v in data.items() if k in WELLNESS_KEYS
-                    }
-                    if wellness_received:
-                        print("Wellness Metrics Received:")  # int for each value
-                        for k, v in wellness_received.items():
-                            print(f"   - {k}: {v}")
+                        
+                        # Only process wellness data if we have a participant ID
+                        if participant_id:
+                            # Initialize database connection if needed
+                            db = DatabaseService()
+                            
+                            # Store wellness data
+                            db.store_wellness_data(participant_id, data, timestamp)
+                            
+                            # Log successful storage
+                            logger.info(f"Stored wellness data for participant {participant_id}")
+                            
+                            # Send confirmation back to client
+                            channel.send(json.dumps({
+                                "status": "success",
+                                "message": "Wellness data stored successfully",
+                                "timestamp": timestamp
+                            }))
+                    else:
+                        logger.warning("Received data without ParticipantID, cannot store wellness metrics")
 
                 except json.JSONDecodeError:
                     print("Failed to decode message as JSON.")
+                except Exception as e:
+                    logger.error(f"Error processing wellness data: {str(e)}")
+                    # Send error back to client
+                    channel.send(json.dumps({
+                        "status": "error",
+                        "message": f"Failed to process wellness data: {str(e)}",
+                        "timestamp": int(time.time() * 1000)
+                    }))
 
         # Let broker emit prediction data through datachannel
         async def send_data(data: Optional[dict]):

@@ -318,15 +318,42 @@ class ModelManagerWorker(Thread):
         
         # Process the data to include summary statistics
         summary = {}
-        for measurement_type, measurements in historical_data.items():
-            if measurements:
-                values = [m['value'] for m in measurements]
-                summary[f"{measurement_type}_history"] = {
-                    'latest': measurements[0]['value'],
-                    'avg': sum(values) / len(values),
-                    'min': min(values),
-                    'max': max(values),
-                    'measurements': measurements
-                }
+        
+        # Define measurement groups for better organization
+        measurement_groups = {
+            'physiological': ['heart_rate', 'heart_rate_variability'],
+            'fatigue': ['fatigue'],
+            'skin': ['darkCircleLeft', 'darkCircleRight', 'pimpleCount'],
+            'wellness': ['weight', 'body_fat', 'muscle_soreness', 'stress', 
+                        'mood_state', 'energy_levels', 'sleep_quality']
+        }
+        
+        # Process each measurement type
+        for group_name, measurement_types in measurement_groups.items():
+            group_summary = {}
+            
+            for measurement_type in measurement_types:
+                measurements = historical_data.get(measurement_type, [])
+                if measurements:
+                    values = [m['value'] for m in measurements]
+                    
+                    # For boolean values, calculate percentage of True
+                    if all(isinstance(v, bool) for v in values):
+                        group_summary[f"{measurement_type}_history"] = {
+                            'latest': measurements[0]['value'],
+                            'percentage': sum(values) / len(values) * 100,
+                            'measurements': measurements
+                        }
+                    else:
+                        group_summary[f"{measurement_type}_history"] = {
+                            'latest': measurements[0]['value'],
+                            'avg': sum(values) / len(values),
+                            'min': min(values),
+                            'max': max(values),
+                            'measurements': measurements
+                        }
+            
+            if group_summary:
+                summary[group_name] = group_summary
         
         return summary
