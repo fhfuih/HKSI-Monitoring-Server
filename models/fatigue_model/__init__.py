@@ -56,13 +56,18 @@ class FatigueModel(BaseModel):
         # self.frame_buffer.clear()
 
         # return {"status": "completed"}
+        logger.info(f"Final -- Fatigue result: {self.rating}")
         return {"fatigue": self.rating}
 
 
     def frame(
         self, sid: Hashable, frame: np.ndarray, timestamp: int, *args, **kwargs
     ) -> Optional[dict]:
-        
+
+        logger.debug(
+            f"{self.name} start processing sid({sid})'s frames@{timestamp} at {datetime.now()}"
+        )
+
         self.frame_count += 1
         
         # Store frame if it meets the skip_frames criteria
@@ -120,6 +125,8 @@ class FatigueModel(BaseModel):
                     "fatigue_process_time": process_time,
                 }
                 self.previous_result = result
+
+                logger.info(f"Fatigue result: {result}")
                 return result
 
         return self.previous_result
