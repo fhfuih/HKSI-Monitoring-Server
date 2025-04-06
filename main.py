@@ -183,48 +183,61 @@ async def offer(request: web.Request) -> web.Response:
             else:
                 try:
                     data = json.loads(message)
-                    participant_id = None
+                    # participant_id = None
                     timestamp = int(time.time() * 1000)  # Current timestamp in milliseconds
                     
-                    # Extract participant ID
+                    # Extract participant ID (After evaluation, we may not use participant id. Then, change here.)
                     if "ParticipantID" in data:
                         participant_id = data["ParticipantID"]
-                        print(f"Received ParticipantID: {participant_id}")
-                        
-                        # Only process wellness data if we have a participant ID
-                        if participant_id:
+                        # del data["ParticipantID"]
+                        # print(f"Received ParticipantID: {participant_id}")
+                        if participant_id and not data:
+                            broker.set_participantID(participant_id)
+
+                        # Only process data if we have a participant ID (for evaluation, participant id and person id are different, so we must have not null participant id)
+                        elif participant_id:
+
+                            logger.info(f"Received ParticipantID and Related Messages: {participant_id} and {list(data.values())}")
                             # Initialize database connection if needed
                             db = DatabaseService()
-                            
-                            # Store wellness data
-                            db.store_wellness_data(participant_id, data, timestamp)
-                            
-                            # Log successful storage
-                            logger.info(f"Stored wellness data for participant {participant_id}")
-                            
+
+                            # Store wellness data or body data
+                            if "surveyResult" in data:
+                                db.store_wellness_data_int(participant_id, data["surveyResult"], timestamp)
+                                logger.info(f"Stored survey data for participant {participant_id}")
+                            elif "bodyDataDict" in data:
+                                db.store_wellness_data_float(participant_id, data["bodyDataDict"], timestamp)
+                                logger.info(f"Stored body data for participant {participant_id}")
+                            elif "weightDataDict" in data:
+                                db.store_wellness_data_float(participant_id, data["weightDataDict"], timestamp)
+                                logger.info(f"Stored weight data for participant {participant_id}")
+
                             # Send confirmation back to client
                             channel.send(json.dumps({
                                 "status": "success",
-                                "message": "Wellness data stored successfully",
+                                "message": "data stored successfully",
                                 "timestamp": timestamp
                             }))
                     else:
-                        logger.warning("Received data without ParticipantID, cannot store wellness metrics")
+                        logger.info("Received data without ParticipantID, cannot store any metrics")
 
                 except json.JSONDecodeError:
                     print("Failed to decode message as JSON.")
                 except Exception as e:
-                    logger.error(f"Error processing wellness data: {str(e)}")
+                    logger.error(f"Error processing data: {str(e)}")
                     # Send error back to client
                     channel.send(json.dumps({
                         "status": "error",
-                        "message": f"Failed to process wellness data: {str(e)}",
+                        "message": f"Failed to process data: {str(e)}",
                         "timestamp": int(time.time() * 1000)
                     }))
 
         # Let broker emit prediction data through datachannel
         async def send_data(data: Optional[dict]):
+            if broker.get_participantID():
+                data['participant_id'] = broker.get_participantID()
             logger.info("There is data sent from backend: %s", data)
+
             d = json.dumps(
                 data,
                 ensure_ascii=False,
@@ -254,12 +267,14 @@ async def offer(request: web.Request) -> web.Response:
             recorder.addTrack(track)
 
         elif track.kind == "video":
-            # Should be this subclass according to log. Cast for IDE code completion.
+            # Should be this subclass accord
+            #
+            # ng to log. Cast for IDE code completion.
             track = cast(RemoteStreamTrack, track)
 
             # Mark session start
             broker.start_session(pc_id)
-            logger.debug(f"PC({pc_id}) model session started")
+            logger.info(f"PC({pc_id}) model session started")
 
             # This sends (forwards) the video back to every client
             # pc.addTrack(relay.subscribe(track))

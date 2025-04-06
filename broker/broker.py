@@ -19,6 +19,8 @@ class Broker:
     ) -> None:
         self._sessions: dict[Hashable, SessionAsset] = {}
         self._models = models
+        self.participantID = None
+
         logger.info(
             "Broker initialized the following models: %s", [m.name for m in models]
         )
@@ -28,6 +30,8 @@ class Broker:
         logger.debug("Broker started ModelManagerWorker")
 
     def start_session(self, sid: Hashable, timestamp: Optional[int] = None):
+        self.participantID = None
+        logger.info("initialize participant ID when starting session")
         if sid in self._sessions:
             raise KeyError(f"A session with id {sid} already exists.")
 
@@ -55,6 +59,12 @@ class Broker:
         # Tell ML models to end
         self.manager_thread.add_end(sid, timestamp)
         logger.debug("Broker(%s) told ML models to process `stop` action", sid)
+
+    def set_participantID(self, participant_id):
+        self.participantID = participant_id
+
+    def get_participantID(self):
+        return self.participantID
 
     def frame(self, sid: Hashable, data: npt.NDArray, timestamp: int):
         session_asset = self._sessions.get(sid, None)

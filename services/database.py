@@ -109,13 +109,13 @@ class DatabaseService:
         except:
             return False
 
-    def store_wellness_data(self, person_id: str, data: Dict[str, Any], timestamp: int):
+    def store_wellness_data_int(self, person_id: str, data: Dict[str, int], timestamp: int):
         """Store wellness data received from frontend"""
         try:
             # Map frontend keys to database keys
             wellness_mapping = {
-                "Weight": "weight",
-                "Body Fat": "body_fat",
+                # "Weight": "weight",
+                # "Body Fat": "body_fat",
                 "Muscle Soreness": "muscle_soreness",
                 "Stress": "stress", 
                 "Mood State": "mood_state",
@@ -138,7 +138,35 @@ class DatabaseService:
                     else:
                         logger.warning(f"Invalid wellness value for {db_key}: {value}")
         except Exception as e:
-            logger.error(f"Failed to store wellness data: {str(e)}")
+            logger.error(f"Failed to store wellness data int: {str(e)}")
+
+
+    def store_wellness_data_float(self, person_id: str, data: Dict[str, float], timestamp: int):
+        """Store wellness data received from frontend"""
+        try:
+            # Map frontend keys to database keys
+            wellness_mapping = {
+                "Weight": "weight",
+                "Body Fat": "body_fat"
+            }
+
+            # Store each wellness metric
+            for frontend_key, db_key in wellness_mapping.items():
+                if frontend_key in data:
+                    value = data[frontend_key]
+                    if self._validate_measurement(db_key, value):
+                        self.store_measurement(
+                            person_id=person_id,
+                            measurement_type=db_key,
+                            value=value,
+                            timestamp=timestamp,
+                            is_final=True  # Wellness data is always considered final
+                        )
+                    else:
+                        logger.warning(f"Invalid wellness value for {db_key}: {value}")
+        except Exception as e:
+            logger.error(f"Failed to store wellness data float: {str(e)}")
+
 
     def get_person_measurements_summary(
         self, 
