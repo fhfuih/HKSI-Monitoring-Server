@@ -187,12 +187,13 @@ async def offer(request: web.Request) -> web.Response:
                     timestamp = int(time.time() * 1000)  # Current timestamp in milliseconds
                     
                     # Extract participant ID (After evaluation, we may not use participant id. Then, change here.)
-                    if "ParticipantID" in data:
+                    if "ParticipantID" in data.keys():
                         participant_id = data["ParticipantID"]
-                        # del data["ParticipantID"]
+                        del data["ParticipantID"]
                         # print(f"Received ParticipantID: {participant_id}")
                         if participant_id and not data:
                             broker.set_participantID(participant_id)
+                            print("broker.get_participantID(): ", broker.get_participantID())
 
                         # Only process data if we have a participant ID (for evaluation, participant id and person id are different, so we must have not null participant id)
                         elif participant_id:

@@ -5,15 +5,21 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="72019321-6515-46d8-afce-cfe6306fa4fd" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/Deal with DB.ipynb" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/broker/broker.py" beforeDir="false" afterPath="$PROJECT_DIR$/broker/broker.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/services/database.py" beforeDir="false" afterPath="$PROJECT_DIR$/services/database.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Jupyter Notebook" />
+      </list>
+    </option>
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -128,6 +134,7 @@
       <workItem from="1742873291501" duration="8979000" />
       <workItem from="1742902604879" duration="26392000" />
       <workItem from="1743614896197" duration="6876000" />
+      <workItem from="1743927208404" duration="33820000" />
     </task>
     <servers />
   </component>
