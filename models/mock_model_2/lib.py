@@ -3,7 +3,8 @@ from random import random
 
 def get_result(someParam):
     return {
-        "fatigue": someParam,
+        # "fatigue": someParam,
+        "fatigue": 0.5,
         "pimpleCount": 2,
         "darkCircleLeft": True,
         "darkCircleRight": False,

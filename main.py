@@ -189,6 +189,7 @@ async def offer(request: web.Request) -> web.Response:
                     # Extract participant ID (After evaluation, we may not use participant id. Then, change here.)
                     if "ParticipantID" in data.keys():
                         participant_id = data["ParticipantID"]
+                        # person_id = data["PersonID"]
                         del data["ParticipantID"]
                         # print(f"Received ParticipantID: {participant_id}")
                         if participant_id and not data:
@@ -197,28 +198,29 @@ async def offer(request: web.Request) -> web.Response:
 
                         # Only process data if we have a participant ID (for evaluation, participant id and person id are different, so we must have not null participant id)
                         elif participant_id:
-
                             logger.info(f"Received ParticipantID and Related Messages: {participant_id} and {list(data.values())}")
+                            person_id = data["PersonID"]
+                            logger.info(f"Received PersonID and Related Messages: {person_id} and {list(data.values())}")
                             # Initialize database connection if needed
                             db = DatabaseService()
 
                             # Store wellness data or body data
                             if "surveyResult" in data:
-                                db.store_wellness_data_int(participant_id, data["surveyResult"], timestamp)
+                                db.store_wellness_data_int(person_id, participant_id, data["surveyResult"], timestamp)
                                 logger.info(f"Stored survey data for participant {participant_id}")
                             elif "bodyDataDict" in data:
-                                db.store_wellness_data_float(participant_id, data["bodyDataDict"], timestamp)
+                                db.store_wellness_data_float(person_id, participant_id, data["bodyDataDict"], timestamp)
                                 logger.info(f"Stored body data for participant {participant_id}")
                             elif "weightDataDict" in data:
-                                db.store_wellness_data_float(participant_id, data["weightDataDict"], timestamp)
+                                db.store_wellness_data_float(person_id, participant_id, data["weightDataDict"], timestamp)
                                 logger.info(f"Stored weight data for participant {participant_id}")
 
-                            # Send confirmation back to client
-                            channel.send(json.dumps({
-                                "status": "success",
-                                "message": "data stored successfully",
-                                "timestamp": timestamp
-                            }))
+                            # # Send confirmation back to client
+                            # channel.send(json.dumps({
+                            #     "status": "success",
+                            #     "message": "data stored successfully",
+                            #     "timestamp": timestamp
+                            # }))
                     else:
                         logger.info("Received data without ParticipantID, cannot store any metrics")
 

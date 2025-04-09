@@ -22,11 +22,13 @@ class DatabaseService:
         try:
             self.db.measurements.create_index([
                 ("person_id", ASCENDING),
+                ("participant_id", ASCENDING),
                 ("type", ASCENDING),
                 ("timestamp", ASCENDING),
                 ("is_final", ASCENDING)
             ])
             self.db.face_embeddings.create_index("person_id", unique=True)
+            # self.db.face_embeddings.create_index("participant_id", unique=True)
         except Exception as e:
             logger.error(f"Failed to create indexes: {str(e)}")
 
@@ -62,8 +64,9 @@ class DatabaseService:
 
     def store_measurement(
         self, 
-        person_id: str, 
-        measurement_type: str, 
+        person_id: str,
+        participant_id: str,
+        measurement_type: str,
         value: Any, 
         timestamp: int,
         is_final: bool = False
@@ -78,6 +81,7 @@ class DatabaseService:
             # Store with additional metadata
             self.db.measurements.insert_one({
                 "person_id": person_id,
+                "participant_id": participant_id,
                 "type": measurement_type,
                 "value": value,
                 "timestamp": timestamp,
@@ -109,7 +113,7 @@ class DatabaseService:
         except:
             return False
 
-    def store_wellness_data_int(self, person_id: str, data: Dict[str, int], timestamp: int):
+    def store_wellness_data_int(self, person_id: str, participant_id: str, data: Dict[str, int], timestamp: int):
         """Store wellness data received from frontend"""
         try:
             # Map frontend keys to database keys
@@ -130,6 +134,7 @@ class DatabaseService:
                     if self._validate_measurement(db_key, value):
                         self.store_measurement(
                             person_id=person_id,
+                            participant_id=participant_id,
                             measurement_type=db_key,
                             value=value,
                             timestamp=timestamp,
@@ -141,7 +146,7 @@ class DatabaseService:
             logger.error(f"Failed to store wellness data int: {str(e)}")
 
 
-    def store_wellness_data_float(self, person_id: str, data: Dict[str, float], timestamp: int):
+    def store_wellness_data_float(self, person_id: str, participant_id: str, data: Dict[str, float], timestamp: int):
         """Store wellness data received from frontend"""
         try:
             # Map frontend keys to database keys
@@ -157,6 +162,7 @@ class DatabaseService:
                     if self._validate_measurement(db_key, value):
                         self.store_measurement(
                             person_id=person_id,
+                            participant_id=participant_id,
                             measurement_type=db_key,
                             value=value,
                             timestamp=timestamp,
@@ -171,6 +177,7 @@ class DatabaseService:
     def get_person_measurements_summary(
         self, 
         person_id: str,
+        participant_id: str,
         only_final: bool = True,
         limit: int = 100
     ) -> Dict[str, List[Dict]]:
@@ -187,7 +194,8 @@ class DatabaseService:
             
             for measurement_type in measurement_types:
                 query = {
-                    "person_id": person_id,
+                    # "person_id": person_id,
+                    "participant_id": participant_id,
                     "type": measurement_type
                 }
                 

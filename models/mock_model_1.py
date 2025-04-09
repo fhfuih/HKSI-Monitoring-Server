@@ -27,8 +27,8 @@ class MockModel1(BaseModel):
 
         # Example: return a final conclusive value (e.g., the average over the 30 seconds)
         return {
-            "hr": timestamp,
-            "hrv": timestamp,
+            "hr": 65,
+            "hrv": 105,
         }
 
     def frame(
@@ -43,6 +43,6 @@ class MockModel1(BaseModel):
 
         # Example: return a value when finishing a certain frame
         return {
-            "hr": timestamp / 1000,
-            "hrv": timestamp,
+            "hr": 65,
+            "hrv": 105,
         }

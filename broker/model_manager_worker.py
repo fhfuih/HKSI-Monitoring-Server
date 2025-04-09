@@ -37,6 +37,7 @@ class ModelManagerWorker(Thread):
         # This is expected for now because ModelManagerWorker is a thread object created by broker itself
         # But if it no longer is, remember to change to weakref to allow python GC broker object
         self.__broker = weakref.ref(broker)
+        self.broker = broker # no sure
 
         # Store start and end actions (sid -> action)
         self.__start_actions: dict[Hashable, ModelAction] = {}
@@ -157,6 +158,7 @@ class ModelManagerWorker(Thread):
         combined_result = None
         is_final = True
         person_id = None
+        # participant_id = None
         report_timestamp = int(time.time() * 1000)  # Get timestamp in milliseconds
 
         for model_report in self.__model_results[sid]:
@@ -166,7 +168,8 @@ class ModelManagerWorker(Thread):
                 if isinstance(self.__model_workers[model_report.model_index]._ModelWorker__model,
                             FaceRecognitionModel):
                     person_id = raw_result.get('person_id')
-
+                    # participant_id = raw_result.get('participant_id')
+                # participant_id = raw_result.get('participant_id')
                 if combined_result is None:
                     combined_result = {}
                 combined_result.update(raw_result)
@@ -202,9 +205,19 @@ class ModelManagerWorker(Thread):
         elif is_final and on_end_data is not None:
             # Add historical data for final results
 
-            if person_id:
-                historical_data = self._get_historical_data(person_id)
-                self._store_measurements(person_id, combined_result, combined_result.get("timestamp"), combined_result.get("final"))
+            # if person_id:
+            #     historical_data = self._get_historical_data(person_id)
+            #     self._store_measurements(person_id, combined_result, combined_result.get("timestamp"), combined_result.get("final"))
+            #     combined_result['historical_data'] = historical_data
+
+            logger.info("combined_result:" + str(combined_result))
+
+            # participant_id = combined_result.get('participant_id')  # no sucess --> or from broker?
+            participant_id = self.broker.get_participantID()
+
+            if participant_id:
+                historical_data = self._get_historical_data(person_id, participant_id)
+                self._store_measurements(person_id, participant_id, combined_result, combined_result.get("timestamp"), combined_result.get("final"))
                 combined_result['historical_data'] = historical_data
                 
             on_end_data(combined_result)
@@ -284,9 +297,11 @@ class ModelManagerWorker(Thread):
                     action_with_progress
                 )
 
-    def _store_measurements(self, person_id: str, results: Dict[str, Any], timestamp: int, is_final: bool = False):
+    def _store_measurements(self, person_id: str, participant_id: str, results: Dict[str, Any], timestamp: int, is_final: bool = False):
         """Store relevant measurements in the database"""
-        if not person_id:
+        # if not person_id:
+        #     return
+        if not participant_id:
             return
 
         measurements = {
@@ -303,18 +318,22 @@ class ModelManagerWorker(Thread):
             if value is not None:
                 self.db.store_measurement(
                     person_id=person_id,
+                    participant_id=participant_id,
                     measurement_type=measurement_type,
                     value=value,
                     timestamp=timestamp,
                     is_final=is_final
                 )
 
-    def _get_historical_data(self, person_id: str) -> Dict[str, Any]:
+    def _get_historical_data(self, person_id: str, participant_id: str) -> Dict[str, Any]:
         """Gather historical measurements for a person"""
-        if not person_id:
+        # if not person_id:
+        #     return {}
+        if not participant_id:
             return {}
         
-        historical_data = self.db.get_person_measurements_summary(person_id)
+        # historical_data = self.db.get_person_measurements_summary(person_id)
+        historical_data = self.db.get_person_measurements_summary(person_id, participant_id)
         
         # Process the data to include summary statistics
         summary = {}
