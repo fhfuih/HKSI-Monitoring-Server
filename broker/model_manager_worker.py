@@ -203,23 +203,18 @@ class ModelManagerWorker(Thread):
             on_intermediate_data(combined_result)
 
         elif is_final and on_end_data is not None:
-            # Add historical data for final results
-
-            # if person_id:
-            #     historical_data = self._get_historical_data(person_id)
-            #     self._store_measurements(person_id, combined_result, combined_result.get("timestamp"), combined_result.get("final"))
-            #     combined_result['historical_data'] = historical_data
-
             logger.info("combined_result:" + str(combined_result))
-
-            # participant_id = combined_result.get('participant_id')  # no sucess --> or from broker?
             participant_id = self.broker.get_participantID()
-
             if participant_id:
+                # first persist this session's values, then reload history including this session
+                self._store_measurements(
+                    person_id, participant_id,
+                    combined_result,
+                    combined_result.get("timestamp"),
+                    combined_result.get("final")
+                )
                 historical_data = self._get_historical_data(person_id, participant_id)
-                self._store_measurements(person_id, participant_id, combined_result, combined_result.get("timestamp"), combined_result.get("final"))
                 combined_result['historical_data'] = historical_data
-                
             on_end_data(combined_result)
 
     def __progress(
@@ -326,53 +321,55 @@ class ModelManagerWorker(Thread):
                 )
 
     def _get_historical_data(self, person_id: str, participant_id: str) -> Dict[str, Any]:
-        """Gather historical measurements for a person"""
-        # if not person_id:
-        #     return {}
+        """Gather six aligned lists of historical final measurements."""
         if not participant_id:
             return {}
-        
-        # historical_data = self.db.get_person_measurements_summary(person_id)
-        historical_data = self.db.get_person_measurements_summary(person_id, participant_id)
-        
-        # Process the data to include summary statistics
-        summary = {}
-        
-        # Define measurement groups for better organization
-        measurement_groups = {
-            'physiological': ['heart_rate', 'heart_rate_variability'],
-            'fatigue': ['fatigue'],
-            'skin': ['darkCircleLeft', 'darkCircleRight', 'pimpleCount'],
-            'wellness': ['weight', 'body_fat', 'muscle_soreness', 'stress', 
-                        'mood_state', 'energy_levels', 'sleep_quality']
+
+        # Pull raw final measurements per type from MongoDB
+        raw_history = self.db.get_person_measurements_summary(person_id, participant_id)
+
+        # Build a sorted list of all distinct session timestamps
+        timestamps = sorted({
+            m['timestamp']
+            for measurements in raw_history.values()
+            for m in measurements
+        })
+
+        # Map each measurement type to a {timestamp→value} dict
+        history_map: Dict[str, Dict[int, Any]] = {}
+        for mtype in [
+            'heart_rate', 'fatigue',
+            'darkCircleLeft', 'darkCircleRight', 'pimpleCount',
+            'weight', 'body_fat'
+        ]:
+            history_map[mtype] = {
+                m['timestamp']: m['value']
+                for m in raw_history.get(mtype, [])
+            }
+
+        # Now assemble each list, in chronological order, inserting None if a session never recorded that metric
+        hr_list          = [ history_map['heart_rate'].get(ts)       for ts in timestamps ]
+        fatigue_list     = [ history_map['fatigue'].get(ts)          for ts in timestamps ]
+        pimple_list      = [ history_map['pimpleCount'].get(ts)      for ts in timestamps ]
+
+        # for dark-circle count, only if both left+right exist, else None
+        dark_circle_list: list[Any] = []
+        for ts in timestamps:
+            left  = history_map['darkCircleLeft'].get(ts)
+            right = history_map['darkCircleRight'].get(ts)
+            if left is None or right is None:
+                dark_circle_list.append(None)
+            else:
+                dark_circle_list.append(int(bool(left)) + int(bool(right)))
+
+        weight_list      = [ history_map['weight'].get(ts)           for ts in timestamps ]
+        body_fat_list    = [ history_map['body_fat'].get(ts)         for ts in timestamps ]
+
+        return {
+            'hrList'          : hr_list,
+            'fatigueList'     : fatigue_list,
+            'darkCircleList'  : dark_circle_list,
+            'pimpleCountList' : pimple_list,
+            'weightList'      : weight_list,
+            'bodyFatList'     : body_fat_list
         }
-        
-        # Process each measurement type
-        for group_name, measurement_types in measurement_groups.items():
-            group_summary = {}
-            
-            for measurement_type in measurement_types:
-                measurements = historical_data.get(measurement_type, [])
-                if measurements:
-                    values = [m['value'] for m in measurements]
-                    
-                    # For boolean values, calculate percentage of True
-                    if all(isinstance(v, bool) for v in values):
-                        group_summary[f"{measurement_type}_history"] = {
-                            'latest': measurements[0]['value'],
-                            'percentage': sum(values) / len(values) * 100,
-                            'measurements': measurements
-                        }
-                    else:
-                        group_summary[f"{measurement_type}_history"] = {
-                            'latest': measurements[0]['value'],
-                            'avg': sum(values) / len(values),
-                            'min': min(values),
-                            'max': max(values),
-                            'measurements': measurements
-                        }
-            
-            if group_summary:
-                summary[group_name] = group_summary
-        
-        return summary
