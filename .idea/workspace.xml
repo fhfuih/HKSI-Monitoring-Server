@@ -7,9 +7,6 @@
     <list default="true" id="72019321-6515-46d8-afce-cfe6306fa4fd" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/broker/model_manager_worker.py" beforeDir="false" afterPath="$PROJECT_DIR$/broker/model_manager_worker.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/models/mock_model_1.py" beforeDir="false" afterPath="$PROJECT_DIR$/models/mock_model_1.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/models/mock_model_2/lib.py" beforeDir="false" afterPath="$PROJECT_DIR$/models/mock_model_2/lib.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/services/database.py" beforeDir="false" afterPath="$PROJECT_DIR$/services/database.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -138,6 +135,7 @@
       <workItem from="1742902604879" duration="26392000" />
       <workItem from="1743614896197" duration="6876000" />
       <workItem from="1743927208404" duration="55332000" />
+      <workItem from="1745130045306" duration="6941000" />
     </task>
     <servers />
   </component>

@@ -7,6 +7,7 @@ import logging
 
 logger = logging.getLogger("HKSI WebRTC")
 
+
 class DatabaseService:
     def __init__(self, connection_string: Optional[str] = None):
         if connection_string is None:
@@ -188,8 +189,9 @@ class DatabaseService:
                 'heart_rate', 'heart_rate_variability', 'fatigue', 
                 'darkCircleLeft', 'darkCircleRight', 'pimpleCount',
                 # Add wellness metrics
-                'weight', 'body_fat', 'muscle_soreness', 'stress',
-                'mood_state', 'energy_levels', 'sleep_quality'
+                'weight', 'body_fat'
+                # , 'muscle_soreness', 'stress',
+                # 'mood_state', 'energy_levels', 'sleep_quality'
             ]
             
             for measurement_type in measurement_types:

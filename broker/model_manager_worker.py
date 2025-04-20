@@ -19,6 +19,29 @@ from .types import *
 logger = logging.getLogger("HKSI WebRTC")
 
 
+def compress_list_by_timestamp(
+        timestamps: list[int],
+        values: list[Optional[float]],
+        threshold_ms: int = 1000
+) -> Tuple[list[int], list[Optional[float]]]:
+    """将时间戳间隔在 threshold_ms 以内的合并为一个，保留第一个非 None 的值"""
+    compressed_ts = []
+    compressed_vals = []
+
+    prev_ts = None
+    for ts, val in zip(timestamps, values):
+        if prev_ts is None or ts - prev_ts > threshold_ms:
+            compressed_ts.append(ts)
+            compressed_vals.append(val)
+            prev_ts = ts
+        else:
+            # 已在前一项中合并；可选择更新规则：
+            if compressed_vals[-1] is None and val is not None:
+                compressed_vals[-1] = val
+            # prev_ts 不变
+    return compressed_ts, compressed_vals
+
+
 class ModelManagerWorker(Thread):
     """
     The class that manages all ML models.
@@ -327,6 +350,7 @@ class ModelManagerWorker(Thread):
 
         # Pull raw final measurements per type from MongoDB
         raw_history = self.db.get_person_measurements_summary(person_id, participant_id)
+        print("raw_history:", raw_history)
 
         # Build a sorted list of all distinct session timestamps
         timestamps = sorted({
@@ -359,11 +383,20 @@ class ModelManagerWorker(Thread):
             right = history_map['darkCircleRight'].get(ts)
             if left is None or right is None:
                 dark_circle_list.append(None)
+                # dark_circle_list.append(0)
             else:
                 dark_circle_list.append(int(bool(left)) + int(bool(right)))
 
         weight_list      = [ history_map['weight'].get(ts)           for ts in timestamps ]
         body_fat_list    = [ history_map['body_fat'].get(ts)         for ts in timestamps ]
+
+        timestamps_hr, hr_list = compress_list_by_timestamp(timestamps, hr_list, threshold_ms=1000)
+        timestamps_fatigue, fatigue_list = compress_list_by_timestamp(timestamps, fatigue_list, threshold_ms=1000)
+        timestamps_pimple, pimple_list = compress_list_by_timestamp(timestamps, pimple_list, threshold_ms=1000)
+        timestamps_dark_circle, dark_circle_list = compress_list_by_timestamp(timestamps, dark_circle_list, threshold_ms=1000)
+        timestamps_weight, weight_list = compress_list_by_timestamp(timestamps, weight_list, threshold_ms=1000)
+        timestamps_body_fat, body_fat_list = compress_list_by_timestamp(timestamps, body_fat_list, threshold_ms=1000)
+
 
         return {
             'hrList'          : hr_list,
