@@ -6,15 +6,19 @@ This is the simple backend server as a broker between the frontend (facial image
 
 ### Installing Dependencies
 
-For `webrtc.py`, install the packages listed in `pyproject.toml`.
+Install the packages listed in `pyproject.toml`.
 
-If you use the [Poetry](https://python-poetry.org/) program to manage Python environments, you can simply do
-```sh
+If you use the [uv](https://docs.astral.sh/uv/guides/projects/) program to manage Python environments (I recommend), you can simply do:
+```bash
 cd <project root folder>
-poetry install  # It auto-detects pyproject.toml
+uv sync  # It auto-detects pyproject.toml
 ```
 
-If you don't use Poetry. I recommend you to create a new venv first and activate it.
+It will create an virtual environment at `.venv` inside the root folder. You can either
+* manually activate this venv, and then run `python main.py`, or
+* don't activate it, but run `uv run main.py` inside the project folder. (So that uv will use the venv for you.)
+
+If you don't use uv, I recommend you to create a new venv first and activate it.
 Then, `pip install <...>` all the packages listed in `pyproject.toml`.
 
 ### File structure
