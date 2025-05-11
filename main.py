@@ -25,7 +25,9 @@ from aiohttp import web
 from aiohttp_catcher import Catcher
 from aiohttp_catcher.canned import AIOHTTP_SCENARIOS
 from aiortc import (
+    RTCConfiguration,
     RTCDataChannel,
+    RTCIceServer,
     RTCPeerConnection,
     RTCSessionDescription,
     VideoStreamTrack,
@@ -82,7 +84,7 @@ file_handler.setLevel(logging.WARNING)
 logger.addHandler(file_handler)
 
 # WebRTC service
-pcs = set()  # keep track of peer connections for cleanup
+pcs: set[RTCPeerConnection] = set()  # keep track of peer connections for cleanup
 
 broker = Broker(MODELS)
 
@@ -144,7 +146,11 @@ async def offer(request: web.Request) -> web.Response:
             status=400,
         )
 
-    pc = RTCPeerConnection()
+    pc = RTCPeerConnection(
+        configuration=RTCConfiguration(
+            iceServers=[RTCIceServer("stun:stun.l.google.com:19302")]
+        )
+    )
     pc_id = str(uuid.uuid4())
     pcs.add(pc)
 
@@ -160,13 +166,6 @@ async def offer(request: web.Request) -> web.Response:
 
     # get the main thread's event loop (For datachannel. It uses asyncio underneath)
     loop = asyncio.get_running_loop()
-
-    @pc.on("connectionstatechange")
-    async def on_connectionstatechange():  # type: ignore
-        logger.info("PC(%s) -> %s", pc_id, pc.connectionState)
-        if pc.connectionState == "failed":
-            await pc.close()
-            pcs.discard(pc)
 
     @pc.on("datachannel")
     def on_datachannel(channel: RTCDataChannel):  # type: ignore
@@ -184,8 +183,10 @@ async def offer(request: web.Request) -> web.Response:
                 try:
                     data = json.loads(message)
                     # participant_id = None
-                    timestamp = int(time.time() * 1000)  # Current timestamp in milliseconds
-                    
+                    timestamp = int(
+                        time.time() * 1000
+                    )  # Current timestamp in milliseconds
+
                     # Extract participant ID (After evaluation, we may not use participant id. Then, change here.)
                     if "ParticipantID" in data.keys():
                         participant_id = data["ParticipantID"]
@@ -194,26 +195,54 @@ async def offer(request: web.Request) -> web.Response:
                         # print(f"Received ParticipantID: {participant_id}")
                         if participant_id and not data:
                             broker.set_participantID(participant_id)
-                            print("broker.get_participantID(): ", broker.get_participantID())
+                            print(
+                                "broker.get_participantID(): ",
+                                broker.get_participantID(),
+                            )
 
                         # Only process data if we have a participant ID (for evaluation, participant id and person id are different, so we must have not null participant id)
                         elif participant_id:
-                            logger.info(f"Received ParticipantID and Related Messages: {participant_id} and {list(data.values())}")
+                            logger.info(
+                                f"Received ParticipantID and Related Messages: {participant_id} and {list(data.values())}"
+                            )
                             person_id = data["PersonID"]
-                            logger.info(f"Received PersonID and Related Messages: {person_id} and {list(data.values())}")
+                            logger.info(
+                                f"Received PersonID and Related Messages: {person_id} and {list(data.values())}"
+                            )
                             # Initialize database connection if needed
                             db = DatabaseService()
 
                             # Store wellness data or body data
                             if "surveyResult" in data:
-                                db.store_wellness_data_int(person_id, participant_id, data["surveyResult"], timestamp)
-                                logger.info(f"Stored survey data for participant {participant_id}")
+                                db.store_wellness_data_int(
+                                    person_id,
+                                    participant_id,
+                                    data["surveyResult"],
+                                    timestamp,
+                                )
+                                logger.info(
+                                    f"Stored survey data for participant {participant_id}"
+                                )
                             elif "bodyDataDict" in data:
-                                db.store_wellness_data_float(person_id, participant_id, data["bodyDataDict"], timestamp)
-                                logger.info(f"Stored body data for participant {participant_id}")
+                                db.store_wellness_data_float(
+                                    person_id,
+                                    participant_id,
+                                    data["bodyDataDict"],
+                                    timestamp,
+                                )
+                                logger.info(
+                                    f"Stored body data for participant {participant_id}"
+                                )
                             elif "weightDataDict" in data:
-                                db.store_wellness_data_float(person_id, participant_id, data["weightDataDict"], timestamp)
-                                logger.info(f"Stored weight data for participant {participant_id}")
+                                db.store_wellness_data_float(
+                                    person_id,
+                                    participant_id,
+                                    data["weightDataDict"],
+                                    timestamp,
+                                )
+                                logger.info(
+                                    f"Stored weight data for participant {participant_id}"
+                                )
 
                             # # Send confirmation back to client
                             # channel.send(json.dumps({
@@ -222,23 +251,29 @@ async def offer(request: web.Request) -> web.Response:
                             #     "timestamp": timestamp
                             # }))
                     else:
-                        logger.info("Received data without ParticipantID, cannot store any metrics")
+                        logger.info(
+                            "Received data without ParticipantID, cannot store any metrics"
+                        )
 
                 except json.JSONDecodeError:
                     print("Failed to decode message as JSON.")
                 except Exception as e:
                     logger.error(f"Error processing data: {str(e)}")
                     # Send error back to client
-                    channel.send(json.dumps({
-                        "status": "error",
-                        "message": f"Failed to process data: {str(e)}",
-                        "timestamp": int(time.time() * 1000)
-                    }))
+                    channel.send(
+                        json.dumps(
+                            {
+                                "status": "error",
+                                "message": f"Failed to process data: {str(e)}",
+                                "timestamp": int(time.time() * 1000),
+                            }
+                        )
+                    )
 
         # Let broker emit prediction data through datachannel
         async def send_data(data: Optional[dict]):
             if broker.get_participantID():
-                data['participant_id'] = broker.get_participantID()
+                data["participant_id"] = broker.get_participantID()
             logger.info("There is data sent from backend: %s", data)
 
             d = json.dumps(
@@ -297,6 +332,26 @@ async def offer(request: web.Request) -> web.Response:
                 # Don't now why and how to fully fix it
                 # The fix in https://github.com/aiortc/aiortc/issues/580 is already applied
                 await recorder.stop()
+
+    # more event handlers and logging
+    @pc.on("connectionstatechange")
+    async def on_connectionstatechange():  # type: ignore
+        logger.info("PC(%s) -> %s", pc_id, pc.connectionState)
+        if pc.connectionState == "failed":
+            await pc.close()
+            pcs.discard(pc)
+
+    @pc.on("iceconnectionstatechange")
+    async def on_iceconnectionstatechange():
+        logger.debug("PC(%s) iceConnectionState->%s", pc_id, pc.iceConnectionState)
+
+    @pc.on("signalingstatechange")
+    async def on_signalingstatechange():
+        logger.debug("PC(%s) signalingState->%s", pc_id, pc.signalingState)
+
+    @pc.on("icegatheringstatechange")
+    async def on_icegatheringstatechange():
+        logger.debug("PC(%s) iceGatheringState->%s", pc_id, pc.iceGatheringState)
 
     # handle offer
     await pc.setRemoteDescription(offer)
