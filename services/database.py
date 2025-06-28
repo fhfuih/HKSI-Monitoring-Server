@@ -40,7 +40,7 @@ class DatabaseService:
             upsert=True
         )
 
-    def find_matching_person(self, embedding: np.ndarray, threshold: float = 0.6) -> Optional[str]:
+    def find_matching_person(self, embedding: np.ndarray, threshold: float = 0.3) -> Optional[str]:
         """Match face embedding with stored embeddings in database"""
         # Get all face embeddings from database
         cursor = self.db.face_embeddings.find({})
