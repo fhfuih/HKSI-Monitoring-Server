@@ -30,6 +30,20 @@ dependencies = [
     "transformers>=4.51.3",
 ]
 
+# Pin PyTorch packages to a specific CUDA version
+# Guide at https://docs.astral.sh/uv/concepts/indexes/#pinning-a-package-to-an-index
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu126", marker = "sys_platform != 'darwin'" }]
+torchvision = [{ index = "pytorch-cu126", marker = "sys_platform != 'darwin'" }]
+torchaudio = [{ index = "pytorch-cu126", marker = "sys_platform != 'darwin'" }]
+
+# Specify the PyTorch index with CUDA 12.6
+# URL found at https://pytorch.org/get-started/locally/
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
+
 [tool.ruff.lint]
 select = ["D", "I"]
 
