@@ -43,8 +43,15 @@ async def run(
 
         @data_channel.on("message")
         async def on_data_channel_message(message):
-            print("🤖", message, time.time())
             message_obj: dict = json.loads(message)
+            
+            # Create a copy for logging and replace the embedding with a placeholder
+            log_obj = message_obj.copy()
+            if 'face_embedding' in log_obj:
+                log_obj['face_embedding'] = f"[Embedding of size {len(log_obj.get('face_embedding', []))}]"
+            
+            print("🤖", log_obj, time.time())  # Print the cleaned-up object
+
             if message_obj.get("final", False):
                 print(
                     "The test client receives the `end` data ('final': true). Closing the connection in 3 seconds…"

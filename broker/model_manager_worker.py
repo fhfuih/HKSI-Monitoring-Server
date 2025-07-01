@@ -181,6 +181,7 @@ class ModelManagerWorker(Thread):
         combined_result = None
         is_final = True
         person_id = None
+        face_embedding = None  # Initialize here
         # participant_id = None
         report_timestamp = int(time.time() * 1000)  # Get timestamp in milliseconds
 
@@ -191,6 +192,7 @@ class ModelManagerWorker(Thread):
                 if isinstance(self.__model_workers[model_report.model_index]._ModelWorker__model,
                             FaceRecognitionModel):
                     person_id = raw_result.get('person_id')
+                    face_embedding = raw_result.get('face_embedding')  # Get the embedding
                     # participant_id = raw_result.get('participant_id')
                 # participant_id = raw_result.get('participant_id')
                 if combined_result is None:
@@ -232,6 +234,7 @@ class ModelManagerWorker(Thread):
                 # first persist this session's values, then reload history including this session
                 self._store_measurements(
                     person_id, participant_id,
+                    face_embedding,  # Pass the face embedding
                     combined_result,
                     combined_result.get("timestamp"),
                     combined_result.get("final")
@@ -315,12 +318,23 @@ class ModelManagerWorker(Thread):
                     action_with_progress
                 )
 
-    def _store_measurements(self, person_id: str, participant_id: str, results: Dict[str, Any], timestamp: int, is_final: bool = False):
+    def _store_measurements(self, person_id: str, participant_id: str, face_embedding: Optional[list[float]], results: Dict[str, Any], timestamp: int, is_final: bool = False):
         """Store relevant measurements in the database"""
         # if not person_id:
         #     return
         if not participant_id:
             return
+
+        # Store the face embedding if it exists
+        if face_embedding is not None:
+            self.db.store_measurement(
+                person_id=person_id,
+                participant_id=participant_id,
+                measurement_type='face_embedding',
+                value=face_embedding,
+                timestamp=timestamp,
+                is_final=is_final
+            )
 
         measurements = {
             'heart_rate': results.get('hr'),

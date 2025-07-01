@@ -55,6 +55,7 @@ class FaceRecognitionModel(BaseModel):
         self.recognition_completed = True
         self.rec_result = {
             "person_id": self.current_person_id,
+            "face_embedding": self.current_face_embedding.tolist(),  # Convert to list for JSON serialization
             "face_detected": True,
             # "recognition_timestamp": timestamp
         }

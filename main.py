@@ -304,10 +304,17 @@ async def offer(request: web.Request) -> web.Response:
         async def send_data(data: Optional[dict]):
             if broker.get_participantID():
                 data["participant_id"] = broker.get_participantID()
-            logger.info("There is data sent from backend: %s", data)
+            
+            # Create a copy of the data for logging purposes
+            log_data = data.copy() if data else {}
+            if 'face_embedding' in log_data:
+                # Replace the long embedding list with a short placeholder string for logging
+                log_data['face_embedding'] = f"[Embedding of size {len(log_data.get('face_embedding', []))}]"
+            
+            logger.info("There is data sent from backend: %s", log_data)
 
             d = json.dumps(
-                data,
+                data,  # Send the original data, not the modified log_data
                 ensure_ascii=False,
                 default=lambda o: logger.error(f"can't serialize {o}") or None,
             )
