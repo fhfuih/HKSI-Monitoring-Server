@@ -87,13 +87,22 @@ if not dlib.DLIB_USE_CUDA:  # type: ignore
         file=sys.stderr,
     )
 else:
-    import dlib.cuda  # type: ignore
-
-    dlib_cuda_devices = dlib.cuda.get_device()
-    print(
-        "==========",
-        f"dlib is using CUDA device {dlib_cuda_devices}.",
-        "==========",
-        sep="\n",
-    )
+    try:
+        import dlib.cuda  # type: ignore
+    except ModuleNotFoundError:
+        print(
+            "==========",
+            "Warning: dlib is compiled to use CUDA, but cuda module is not found. Why no one on the Internet has similar issues?",
+            "==========",
+            sep="\n",
+            file=sys.stderr,
+        )
+    else:
+        dlib_cuda_devices = dlib.cuda.get_device()
+        print(
+            "==========",
+            f"dlib is using CUDA device {dlib_cuda_devices}.",
+            "==========",
+            sep="\n",
+        )
 ## }}}
