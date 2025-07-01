@@ -74,3 +74,26 @@ def empty_cache():
 
 
 ## }}}
+
+## {{{ dlib device
+import dlib  # type: ignore
+
+if not dlib.DLIB_USE_CUDA:  # type: ignore
+    print(
+        "==========",
+        "Warning: dlib is not using CUDA. This will slow down the face detection.",
+        "==========",
+        sep="\n",
+        file=sys.stderr,
+    )
+else:
+    import dlib.cuda  # type: ignore
+
+    dlib_cuda_devices = dlib.cuda.get_device()
+    print(
+        "==========",
+        f"dlib is using CUDA device {dlib_cuda_devices}.",
+        "==========",
+        sep="\n",
+    )
+## }}}
