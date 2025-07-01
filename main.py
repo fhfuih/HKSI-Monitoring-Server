@@ -57,16 +57,16 @@ from services.database import DatabaseService
 
 
 ROOT = os.path.dirname(__file__)
-MODELS: list[type[BaseModel]] = [
-    FatigueModel,
-    EyeBagModel,
-    PimpleModel,
-    HeartRateAndHeartRateVariabilityModel,
-    FaceRecognitionModel,
-]
+# MODELS: list[type[BaseModel]] = [
+#     FatigueModel,
+#     EyeBagModel,
+#     PimpleModel,
+#     HeartRateAndHeartRateVariabilityModel,
+#     FaceRecognitionModel,
+# ]
 
 # MODELS: list[type[BaseModel]] = [FatigueModel, EyeBagModel, PimpleModel, FaceRecognitionModel]
-# MODELS = [MockModel1, MockModel2]
+MODELS: list[type[BaseModel]] = [MockModel1, MockModel2]
 # MODELS: list[type[BaseModel]] = [HeartRateAndHeartRateVariabilityModel]
 
 
@@ -146,11 +146,39 @@ async def offer(request: web.Request) -> web.Response:
             status=400,
         )
 
+    turn_username = os.getenv("METERED_USERNAME")
+    turn_credential = os.getenv("METERED_CREDENTIAL")
     pc = RTCPeerConnection(
         configuration=RTCConfiguration(
-            iceServers=[RTCIceServer("stun:stun.l.google.com:19302")]
+            iceServers=[
+                RTCIceServer("stun:stun.l.google.com:19302"),
+                RTCIceServer("stun:stun.relay.metered.ca:80"),
+                RTCIceServer(
+                    "turn:global.relay.metered.ca:80",
+                    username=turn_username,
+                    credential=turn_credential,
+                ),
+                RTCIceServer(
+                    "turn:global.relay.metered.ca:80?transport=tcp",
+                    username=turn_username,
+                    credential=turn_credential,
+                ),
+                RTCIceServer(
+                    "turn:global.relay.metered.ca:443",
+                    username=turn_username,
+                    credential=turn_credential,
+                ),
+                RTCIceServer(
+                    "turns:global.relay.metered.ca:443?transport=tcp",
+                    username=turn_username,
+                    credential=turn_credential,
+                ),
+            ]
         )
     )
+    del turn_username, turn_credential
+    turn_username = turn_credential = None
+
     pc_id = str(uuid.uuid4())
     pcs.add(pc)
 
