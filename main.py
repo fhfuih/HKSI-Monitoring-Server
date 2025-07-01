@@ -13,6 +13,8 @@ from typing import Awaitable, Optional, cast
 
 from dotenv import load_dotenv
 
+import models.utils  # Preload GPU device checks
+
 load_dotenv()
 
 # some ops are not available in macOS metal accelerator
