@@ -204,8 +204,9 @@ class ModelManagerWorker(Thread):
         if combined_result is None:
             return
 
+        # If there is some result, add the report timestamp
         combined_result["final"] = is_final
-        combined_result["timestamp"] = report_timestamp  # Add the report timestamp
+        combined_result["timestamp"] = report_timestamp
 
         # Report the result to the broker
         broker = self.__broker()

@@ -7,13 +7,10 @@ import ssl
 import sys
 import time
 import uuid
-import warnings
 from pathlib import Path
-from typing import Awaitable, Optional, cast
+from typing import Optional, cast
 
 from dotenv import load_dotenv
-
-import models.utils  # Preload GPU device checks
 
 load_dotenv()
 
@@ -21,12 +18,11 @@ load_dotenv()
 # This allows fallback to CPU
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 
-import av
-import numpy as np
 from aiohttp import web
 from aiohttp_catcher import Catcher
 from aiohttp_catcher.canned import AIOHTTP_SCENARIOS
 from aiortc import (
+    MediaStreamTrack,
     RTCConfiguration,
     RTCDataChannel,
     RTCIceServer,
@@ -37,7 +33,6 @@ from aiortc import (
 from aiortc.contrib.media import (
     MediaBlackhole,
     MediaRecorder,
-    MediaStreamTrack,
 )
 from aiortc.rtcrtpreceiver import RemoteStreamTrack
 from av import logging as av_logging
@@ -48,15 +43,9 @@ from models.base_model import BaseModel
 from models.eye_bag_model import EyeBagModel
 from models.face_rec_model import FaceRecognitionModel
 from models.fatigue_model import FatigueModel
-from models.mock_model_1 import MockModel1
-from models.mock_model_2 import MockModel2
 from models.Physiological import HeartRateAndHeartRateVariabilityModel
 from models.pimple_model import PimpleModel
 from services.database import DatabaseService
-
-# in MacBook
-# os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
-
 
 ROOT = os.path.dirname(__file__)
 MODELS: list[type[BaseModel]] = [
@@ -90,8 +79,22 @@ pcs: set[RTCPeerConnection] = set()  # keep track of peer connections for cleanu
 
 broker = Broker(MODELS)
 
-# Command line arguments
+# Command line arguments & globals
 record_path = None
+ICE_SERVERS = [
+    {"urls": ["stun:stun.l.google.com:19302"]},
+    {"urls": ["stun:stun.relay.metered.ca:80"]},
+    {
+        "urls": [
+            "turn:global.relay.metered.ca:80",
+            "turn:global.relay.metered.ca:80?transport=tcp",
+            "turn:global.relay.metered.ca:443",
+            "turns:global.relay.metered.ca:443?transport=tcp",
+        ],
+        "username": os.getenv("METERED_USERNAME"),
+        "credential": os.getenv("METERED_CREDENTIAL"),
+    },
+]
 
 
 class VideoTransformTrack(VideoStreamTrack):
@@ -132,7 +135,7 @@ async def offer(request: web.Request) -> web.Response:
     try:
         params = await request.json()
         offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
-    except:  # noqa: E722
+    except:
         try:
             text = await request.text()
             logger.debug(
@@ -148,38 +151,11 @@ async def offer(request: web.Request) -> web.Response:
             status=400,
         )
 
-    turn_username = os.getenv("METERED_USERNAME")
-    turn_credential = os.getenv("METERED_CREDENTIAL")
     pc = RTCPeerConnection(
         configuration=RTCConfiguration(
-            iceServers=[
-                RTCIceServer("stun:stun.l.google.com:19302"),
-                RTCIceServer("stun:stun.relay.metered.ca:80"),
-                RTCIceServer(
-                    "turn:global.relay.metered.ca:80",
-                    username=turn_username,
-                    credential=turn_credential,
-                ),
-                RTCIceServer(
-                    "turn:global.relay.metered.ca:80?transport=tcp",
-                    username=turn_username,
-                    credential=turn_credential,
-                ),
-                RTCIceServer(
-                    "turn:global.relay.metered.ca:443",
-                    username=turn_username,
-                    credential=turn_credential,
-                ),
-                RTCIceServer(
-                    "turns:global.relay.metered.ca:443?transport=tcp",
-                    username=turn_username,
-                    credential=turn_credential,
-                ),
-            ]
+            iceServers=[RTCIceServer(**ice) for ice in ICE_SERVERS]
         )
     )
-    del turn_username, turn_credential
-    turn_username = turn_credential = None
 
     pc_id = str(uuid.uuid4())
     pcs.add(pc)
@@ -301,7 +277,7 @@ async def offer(request: web.Request) -> web.Response:
                     )
 
         # Let broker emit prediction data through datachannel
-        async def send_data(data: Optional[dict]):
+        async def send_data(data: dict):
             if broker.get_participantID():
                 data["participant_id"] = broker.get_participantID()
             
@@ -321,7 +297,7 @@ async def offer(request: web.Request) -> web.Response:
             channel.send(d)
 
         def on_prediction(data: Optional[dict]):
-            if channel.readyState == "closed":
+            if channel.readyState == "closed" or data is None:
                 return
             asyncio.ensure_future(send_data(data), loop=loop)
 
@@ -408,6 +384,10 @@ async def offer(request: web.Request) -> web.Response:
     )
 
 
+async def ice_servers(request: web.Request) -> web.Response:
+    return web.json_response(ICE_SERVERS)
+
+
 async def hello(request: web.Request) -> web.Response:
     logger.debug(f"Hello World from {request.remote}")
     return web.Response(text="Hello, world")
@@ -423,10 +403,14 @@ async def on_shutdown(app):
 async def setupHttpServer() -> web.Application:
     catcher = Catcher()
     await catcher.add_scenarios(*AIOHTTP_SCENARIOS)
+
     app = web.Application(middlewares=[catcher.middleware])
+
     app.on_shutdown.append(on_shutdown)
     app.router.add_post("/offer", offer)
     app.router.add_get("/", hello)
+    app.router.add_get("/ice-servers", ice_servers)
+
     return app
 
 
