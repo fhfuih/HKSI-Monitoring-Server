@@ -28,6 +28,7 @@ dependencies = [
     "torch>=2.7.0",
     "torchvision>=0.22.0",
     "transformers>=4.51.3",
+    "websockets>=15.0.1",
 ]
 
 # Pin PyTorch packages to a specific CUDA version

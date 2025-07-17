@@ -21,11 +21,33 @@ It will create an virtual environment at `.venv` inside the root folder. You can
 If you don't use uv, I recommend you to create a new venv first and activate it.
 Then, `pip install <...>` all the packages listed in `pyproject.toml`.
 
+### Running the Server
+
+**Default Mode (HTTP + WebSocket)**:
+```bash
+python main.py
+# or
+uv run python main.py
+```
+This starts both HTTP server (port 8083) and WebSocket server (port 8084).
+
+**WebSocket-Only Mode**:
+```bash
+python main.py --websocket-only
+```
+This runs only the WebSocket signaling server.
+
+**Other Options**:
+- `--verbose` or `-v`: Enable debug logging
+- `--record-to <path>`: Specify recording output directory
+- `--cert-file` and `--key-file`: Enable HTTPS/WSS with SSL certificates
+
 ### File structure
 
 * The main file is `main.py`. Run `main.py` to start a WebRTC server that listens to frontend messages and passes them to ML models.
 * `models` folder contains a `BaseModel` definition that ML developers should inherit. `mock_model_1.py` and `mock_model_2/` are two example implementations. (You can see that a model can be defined in a single file or in a folder with other helper files.) The two mock models are intended to be time consuming.
 * `test.py` is a mock client (frontend). After the server is running, run this file in parallel to read `sample-video.mp4` and stream it to the server as if the camera view.
+  - Use `--use-http` flag to test HTTP signaling instead of WebSocket
 
 ## For ML Developers
 
@@ -39,12 +61,80 @@ Then, `pip install <...>` all the packages listed in `pyproject.toml`.
 
 ## For Frontend Developers
 
-### WebRTC Protocol
+### WebRTC Signaling Protocol
 
-* SDP
-    * Format: JSON `{"sdp": "<The standard SDP string>", "type": "<SDP type name>"}`.
-    * Protocol: HTTP(S) at `/offer`. Currently, only support `"offer"` type in the request payload, and `"answer"` in the response.
-* Paradigm: The client (frontend) is the "offer" side of the WebRTC PeerConnection. The client makes the offer, connects to the server, and actively disconnects after 30 seconds.
+The server supports both **WebSocket** (recommended) and **HTTP** signaling protocols for WebRTC negotiation.
+
+#### WebSocket Signaling (Recommended)
+
+**Connection**: Connect to WebSocket endpoint at `ws://host:port+1` (e.g., if HTTP server runs on port 8083, WebSocket runs on 8084)
+
+**Message Format**: All messages are JSON objects with a `type` field:
+```json
+{
+  "type": "message_type",
+  "data": { /* message-specific data */ }
+}
+```
+
+**Message Types**:
+
+1. **offer** - Client sends WebRTC offer to server
+   ```json
+   {
+     "type": "offer",
+     "data": {
+       "sdp": "<SDP string>",
+       "type": "offer"
+     }
+   }
+   ```
+
+2. **answer** - Server responds with WebRTC answer
+   ```json
+   {
+     "type": "answer",
+     "data": {
+       "sdp": "<SDP string>",
+       "type": "answer"
+     }
+   }
+   ```
+
+3. **ice-servers** - Client requests ICE servers (optional)
+   ```json
+   {
+     "type": "ice-servers"
+   }
+   ```
+
+   Server responds:
+   ```json
+   {
+     "type": "ice-servers",
+     "data": [/* ICE server objects */]
+   }
+   ```
+
+4. **error** - Server reports error
+   ```json
+   {
+     "type": "error",
+     "data": {
+       "message": "Error message",
+       "code": 400
+     }
+   }
+   ```
+
+#### HTTP Signaling (Legacy)
+
+* **SDP Format**: JSON `{"sdp": "<The standard SDP string>", "type": "<SDP type name>"}`.
+* **Protocol**: HTTP(S) POST to `/offer`. Only supports `"offer"` type in request payload, and `"answer"` in response.
+
+#### WebRTC Connection Paradigm
+
+* The client (frontend) is the "offer" side of the WebRTC PeerConnection. The client makes the offer, connects to the server, and actively disconnects after processing.
     * Setting up a video track => ML prediction session start
     * Incoming frame => ML prediction frame input
     * Disconnecting => ML prediction session end
