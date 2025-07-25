@@ -293,7 +293,8 @@ if __name__ == "__main__":
     av_logging.set_level(av_logging.ERROR)  # Slient internal logging of the av package
 
     # Launch core service components
-    webrtc_session_manager = WebRTCSessionManager(record_path, broker)
+    loop = asyncio.get_running_loop()
+    webrtc_session_manager = WebRTCSessionManager(loop, record_path, broker)
 
     async def main():
         """Start the WebSocket server for signaling."""

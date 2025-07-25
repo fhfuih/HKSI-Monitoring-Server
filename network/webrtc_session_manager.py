@@ -34,6 +34,7 @@ class WebRTCSessionManager:
     Manages WebRTC peer connections.
 
     Attributes:
+        loop (asyncio.AbstractEventLoop): An event loop. Used to send webrtc datachannel messages (because the `channel.send` function may be called from a different thread in a callback, need to specify the main thread's event loop when calling)
         record_path (Optional[Path]): Directory path for recording video files, None for no recording
         broker (Broker):
 
@@ -46,9 +47,11 @@ class WebRTCSessionManager:
 
     def __init__(
         self,
+        loop: asyncio.AbstractEventLoop,
         record_path: Optional[Path],
         broker: Broker,
     ) -> None:
+        self.loop = loop
         self.record_path = record_path
         self.broker = broker
 
@@ -233,7 +236,7 @@ class WebRTCSessionManager:
                     ensure_ascii=False,
                     default=lambda o: logger.error(f"can't serialize {o}") or None,
                 )
-                channel.send(d)
+                self.loop.run_in_executor(None, lambda: channel.send(d))
 
             def on_prediction(data: Optional[dict]):
                 if channel.readyState == "closed" or data is None:
