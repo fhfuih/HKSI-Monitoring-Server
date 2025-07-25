@@ -216,8 +216,12 @@ class WebRTCSessionManager:
                             )
                         )
 
-            # Let broker emit prediction data through datachannel
-            def send_data(data: dict):
+            # HACK: no await in `send_data`. It is made `async` only to be able to use `asyncio.ensure_future` (because it is now a coroutine)
+            # And `asyncio.ensure_future` is only to specify an event loop `loop=self.loop` for the `channel.send` call.
+            # Because `channel.send` internally uses asyncio, but it is in a callback to be called by another thread (model manager thread).
+            # Need to force it to run in the main thread's event loop, or there will be an RuntimeError: There is no current event loop in thread 'Thread_1'.
+            # Actually, we don't need to hack if `channel.send` ever returns its internal asyncio Task. Now it simply discards it. Fuck the library!
+            async def send_data(data: dict):
                 if self.broker.get_participantID():
                     data["participant_id"] = self.broker.get_participantID()
 
@@ -236,12 +240,12 @@ class WebRTCSessionManager:
                     ensure_ascii=False,
                     default=lambda o: logger.error(f"can't serialize {o}") or None,
                 )
-                self.loop.run_in_executor(None, lambda: channel.send(d))
+                channel.send(d)
 
             def on_prediction(data: Optional[dict]):
                 if channel.readyState == "closed" or data is None:
                     return
-                send_data(data)
+                asyncio.ensure_future(send_data(data), loop=self.loop)
 
             self.broker.set_data_handler(pc_id, on_prediction, on_prediction)
 

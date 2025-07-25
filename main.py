@@ -38,15 +38,15 @@ from utils.monkey_patch import monkeypatch_method
 from utils.network import ICE_SERVERS
 
 ROOT = os.path.dirname(__file__)
-MODELS: list[type[BaseModel]] = [
-    FatigueModel,
-    EyeBagModel,
-    PimpleModel,
-    HeartRateAndHeartRateVariabilityModel,
-    FaceRecognitionModel,
-]
+# MODELS: list[type[BaseModel]] = [
+#     FatigueModel,
+#     EyeBagModel,
+#     PimpleModel,
+#     HeartRateAndHeartRateVariabilityModel,
+#     FaceRecognitionModel,
+# ]
 
-# MODELS: list[type[BaseModel]] = [MockModel1, MockModel2]
+MODELS: list[type[BaseModel]] = [MockModel1, MockModel2]
 broker = Broker(MODELS)
 
 # Command line arguments & globals to be initialized later
@@ -292,14 +292,14 @@ if __name__ == "__main__":
         set_console_log_level(logging.DEBUG)
     av_logging.set_level(av_logging.ERROR)  # Slient internal logging of the av package
 
-    # Launch core service components
-    loop = asyncio.get_running_loop()
-    webrtc_session_manager = WebRTCSessionManager(loop, record_path, broker)
-
     async def main():
-        """Start the WebSocket server for signaling."""
+        global webrtc_session_manager
         print("#=====🛜=====🛜")
         logger.info(f"Starting WebSocket signaling server on {host}:{port}")
+
+        # Launch core service components
+        loop = asyncio.get_running_loop()
+        webrtc_session_manager = WebRTCSessionManager(loop, record_path, broker)
 
         async with websockets.serve(
             websocket_handler,
