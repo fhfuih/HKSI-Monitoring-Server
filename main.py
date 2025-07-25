@@ -38,15 +38,15 @@ from utils.monkey_patch import monkeypatch_method
 from utils.network import ICE_SERVERS
 
 ROOT = os.path.dirname(__file__)
-# MODELS: list[type[BaseModel]] = [
-#     FatigueModel,
-#     EyeBagModel,
-#     PimpleModel,
-#     HeartRateAndHeartRateVariabilityModel,
-#     FaceRecognitionModel,
-# ]
+MODELS: list[type[BaseModel]] = [
+    FatigueModel,
+    EyeBagModel,
+    PimpleModel,
+    HeartRateAndHeartRateVariabilityModel,
+    FaceRecognitionModel,
+]
 
-MODELS: list[type[BaseModel]] = [MockModel1, MockModel2]
+# MODELS: list[type[BaseModel]] = [MockModel1, MockModel2]
 broker = Broker(MODELS)
 
 # Command line arguments & globals to be initialized later
