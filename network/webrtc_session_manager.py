@@ -34,7 +34,6 @@ class WebRTCSessionManager:
     Manages WebRTC peer connections.
 
     Attributes:
-        loop (asyncio.AbstractEventLoop): An event loop. Used to await datachannel operations. They use asyncio underneath.
         record_path (Optional[Path]): Directory path for recording video files, None for no recording
         broker (Broker):
 
@@ -47,11 +46,9 @@ class WebRTCSessionManager:
 
     def __init__(
         self,
-        loop: asyncio.AbstractEventLoop,
         record_path: Optional[Path],
         broker: Broker,
     ) -> None:
-        self.loop = loop
         self.record_path = record_path
         self.broker = broker
 
@@ -217,7 +214,7 @@ class WebRTCSessionManager:
                         )
 
             # Let broker emit prediction data through datachannel
-            async def send_data(data: dict):
+            def send_data(data: dict):
                 if self.broker.get_participantID():
                     data["participant_id"] = self.broker.get_participantID()
 
@@ -241,7 +238,7 @@ class WebRTCSessionManager:
             def on_prediction(data: Optional[dict]):
                 if channel.readyState == "closed" or data is None:
                     return
-                asyncio.ensure_future(send_data(data), loop=self.loop)
+                send_data(data)
 
             self.broker.set_data_handler(pc_id, on_prediction, on_prediction)
 

@@ -11,6 +11,8 @@ from typing import Optional, cast
 
 from dotenv import load_dotenv
 
+from utils.monkey_patch import monkeypatch_method
+
 load_dotenv()
 
 # some ops are not available in macOS metal accelerator
@@ -52,6 +54,19 @@ record_path = cast(Path, None)
 webrtc_session_manager = cast(WebRTCSessionManager, None)
 
 
+# NOTE: Monkey-patch a send method that also yields controls to the event loop
+# See https://websockets.readthedocs.io/en/stable/faq/asyncio.html#why-does-my-program-never-receive-any-messages
+# See https://github.com/python-websockets/websockets/issues/867
+@monkeypatch_method(websockets.ServerConnection)
+async def send_and_yield(
+    self: websockets.ServerConnection,
+    message: Data | Iterable[Data] | AsyncIterable[Data],
+    text: bool | None = None,
+):
+    await self.send(message, text)
+    await asyncio.sleep(0)
+
+
 async def websocket_process_message(
     websocket: websockets.ServerConnection, client_id: str, message: dict
 ):
@@ -65,7 +80,7 @@ async def websocket_process_message(
                 raise ValueError("Only support offer type")
         except (KeyError, TypeError) as e:
             logger.error("Invalid offer format: %s", e)
-            await websocket.send(
+            await websocket.send_and_yield(
                 json.dumps(
                     {
                         "type": "error",
@@ -87,7 +102,7 @@ async def websocket_process_message(
         logger.debug("Receiving remote SDP %s", pc.remoteDescription)
         logger.debug("Responding with local SDP %s", pc.localDescription)
 
-        await websocket.send(
+        await websocket.send_and_yield(
             json.dumps(
                 {
                     "type": "answer",
@@ -104,7 +119,7 @@ async def websocket_process_message(
             pc = webrtc_session_manager.get_session(client_id)
         except KeyError:
             logger.error("No peer connection found for client %s", client_id)
-            await websocket.send(
+            await websocket.send_and_yield(
                 json.dumps(
                     {
                         "type": "error",
@@ -138,7 +153,7 @@ async def websocket_process_message(
             logger.info("PC(%s) added ICE candidate %s", client_id, ice_sdp)
         except (KeyError, TypeError, ValueError) as e:
             logger.error("Invalid ice candidate format: %s", e)
-            await websocket.send(
+            await websocket.send_and_yield(
                 json.dumps(
                     {
                         "type": "error",
@@ -151,14 +166,16 @@ async def websocket_process_message(
             )
             return
 
-        await websocket.send(json.dumps({"type": "success", "data": None}))
+        await websocket.send_and_yield(json.dumps({"type": "success", "data": None}))
 
     elif msg_type == "ice-servers-request":
-        await websocket.send(json.dumps({"type": "ice-servers", "data": ICE_SERVERS}))
+        await websocket.send_and_yield(
+            json.dumps({"type": "ice-servers", "data": ICE_SERVERS})
+        )
 
     else:  # unknown msg_type
         logger.warning("Unknown message type: %s", msg_type)
-        await websocket.send(
+        await websocket.send_and_yield(
             json.dumps(
                 {
                     "type": "error",
@@ -169,6 +186,11 @@ async def websocket_process_message(
                 }
             )
         )
+
+    # NOTE: Since the websocket is in a request-response pattern,
+    # Every type of message triggers a `send_and_yield`,
+    # ending up with an `asyncio.sleep(0)` to force yield controls to the event loop.
+    # So I don't need to call another one here.
 
 
 async def websocket_handler(websocket: websockets.ServerConnection):
@@ -189,7 +211,7 @@ async def websocket_handler(websocket: websockets.ServerConnection):
                 await websocket_process_message(websocket, client_id, message_json)
             except (json.JSONDecodeError, ValueError):
                 logger.error("Invalid JSON object(dist) message: %s", message)
-                await websocket.send(
+                await websocket.send_and_yield(
                     json.dumps(
                         {
                             "type": "error",
@@ -199,7 +221,7 @@ async def websocket_handler(websocket: websockets.ServerConnection):
                 )
             except Exception as e:
                 logger.error("Error processing WebSocket message: %s", e)
-                await websocket.send(
+                await websocket.send_and_yield(
                     json.dumps(
                         {
                             "type": "error",
@@ -267,8 +289,7 @@ if __name__ == "__main__":
     av_logging.set_level(av_logging.ERROR)  # Slient internal logging of the av package
 
     # Launch core service components
-    loop = asyncio.get_event_loop()
-    webrtc_session_manager = WebRTCSessionManager(loop, record_path, broker)
+    webrtc_session_manager = WebRTCSessionManager(record_path, broker)
 
     async def main():
         """Start the WebSocket server for signaling."""
