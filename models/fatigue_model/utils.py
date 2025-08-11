@@ -14,7 +14,7 @@ IMAGENET_STD = (0.229, 0.224, 0.225)
 
 
 def load_model():
-    path = "OpenGVLab/InternVL2-8B"
+    path = "OpenGVLab/InternVL3-8B"
     model = (
         AutoModel.from_pretrained(
             path,
